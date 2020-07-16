@@ -58,6 +58,7 @@ enum class KernelType {
     ONE_HOT,
     DETECTION_OUTPUT,
     GATHER,
+    SCATTER_UPDATE,
     DEPTH_TO_SPACE,
     BATCH_TO_SPACE,
     SHUFFLE_CHANNELS,
@@ -480,6 +481,18 @@ enum class ContractMode {
 enum class GatherAxis {
     X,
     Y,
+    FEATURE,
+    BATCH,
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ScatterUpdateAxis
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+enum class ScatterUpdateAxis {
+    X,
+    Y,
+    Z,
+    W,
     FEATURE,
     BATCH,
 };

@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2016-2019 Intel Corporation
+﻿// Copyright (c) 2016-2020 Intel Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -408,6 +408,18 @@ std::string toString(GatherAxis a) {
         case GatherAxis::Y:       return "Y";
         case GatherAxis::FEATURE: return "FEATURE";
         case GatherAxis::BATCH:   return "BATCH";
+        default: return "";
+    }
+}
+
+std::string toString(ScatterUpdateAxis a) {
+    switch (a) {
+        case ScatterUpdateAxis::X:       return "X";
+        case ScatterUpdateAxis::Y:       return "Y";
+        case ScatterUpdateAxis::Z:       return "Z";
+        case ScatterUpdateAxis::W:       return "W";
+        case ScatterUpdateAxis::FEATURE: return "FEATURE";
+        case ScatterUpdateAxis::BATCH:   return "BATCH";
         default: return "";
     }
 }
