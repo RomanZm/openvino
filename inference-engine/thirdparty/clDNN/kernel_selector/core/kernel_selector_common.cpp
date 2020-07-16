@@ -412,16 +412,6 @@ std::string toString(GatherAxis a) {
     }
 }
 
-std::string toString(ScatterUpdateAxis a) {
-    switch (a) {
-        case ScatterUpdateAxis::X:       return "X";
-        case ScatterUpdateAxis::Y:       return "Y";
-        case ScatterUpdateAxis::FEATURE: return "FEATURE";
-        case ScatterUpdateAxis::BATCH:   return "BATCH";
-        default: return "";
-    }
-}
-
 std::string toString(ResampleType type) {
     switch (type) {
         case ResampleType::NEAREST_NEIGHBOR:  return "SAMPLE_TYPE_NEAREST";
