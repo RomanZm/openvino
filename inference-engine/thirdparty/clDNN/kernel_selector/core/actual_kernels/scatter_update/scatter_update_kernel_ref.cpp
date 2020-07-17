@@ -153,7 +153,7 @@ JitConstants ScatterUpdateKernelRef::GetJitConstants(const scatter_update_params
 }
 
 bool ScatterUpdateKernelRef::Validate(const Params& p, const optional_params& o) const {
-    if (p.GetType() != KernelType::GATHER || o.GetType() != KernelType::GATHER) {
+    if (p.GetType() != KernelType:: SCATTER_UPDATE || o.GetType() != KernelType::SCATTER_UPDATE) {
         return false;
     }
 

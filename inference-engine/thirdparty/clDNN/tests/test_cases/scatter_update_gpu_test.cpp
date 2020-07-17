@@ -24,6 +24,8 @@
 #include <cstddef>
 #include <tests/test_utils/test_utils.h>
 
+#include <exception>// Looking for mistake
+
 using namespace cldnn;
 using namespace ::tests;
 
@@ -43,6 +45,7 @@ TEST(scatter_update_gpu_fp16, d14_axisB) {
     //  Output:
     //  1.f, 2.f, 3.f, 4.f, 3.f, 4.f, 1.f, 2.f
 
+    
     engine engine;
 
     auto input1 = memory::allocate(engine, { data_types::f16, format::bfyx, { 2, 2, 1, 1 } }); // Dictionary
@@ -59,19 +62,23 @@ TEST(scatter_update_gpu_fp16, d14_axisB) {
         1.f, 0.f
     });
 
+    
     topology topology;
     topology.add(input_layout("InputDictionary", input1.get_layout()));
     topology.add(input_layout("InputText", input2.get_layout()));
     topology.add(
         scatter_update("scatter_update", "InputDictionary", "InputText", axis, tensor(1, 4, 1, 2))
     );
-
-    network network(engine, topology);
-
+    
+    network network(engine, topology); 
+    
+    
     network.set_input_data("InputDictionary", input1);
+    
     network.set_input_data("InputText", input2);
-
+    
     auto outputs = network.execute();
+    
 
     auto output = outputs.at("scatter_update").get_memory();
     auto output_ptr = output.pointer<uint16_t>();
@@ -80,9 +87,11 @@ TEST(scatter_update_gpu_fp16, d14_axisB) {
         1.f, 2.f, 3.f, 4.f, 3.f, 4.f, 1.f, 2.f
     };
 
+    
     for (size_t i = 0; i < expected_results.size(); ++i) {
         EXPECT_EQ(expected_results[i], float16_to_float32(output_ptr[i]));
     }
+
 }
 
 TEST(scatter_update_gpu_fp16, d222_axisB) {

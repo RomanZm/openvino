@@ -23,7 +23,7 @@ namespace kernel_selector {
 // scatter_update_params
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct scatter_update_params : public base_params {
-    scatter_update_params() : base_params(KernelType::GATHER), axis(ScatterUpdateAxis::BATCH) {}
+    scatter_update_params() : base_params(KernelType::SCATTER_UPDATE), axis(ScatterUpdateAxis::BATCH) {}
 
     ScatterUpdateAxis axis;
 
@@ -34,7 +34,7 @@ struct scatter_update_params : public base_params {
 // scatter_update_optional_params
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct scatter_update_optional_params : optional_params {
-    scatter_update_optional_params() : optional_params(KernelType::GATHER) {}
+    scatter_update_optional_params() : optional_params(KernelType::SCATTER_UPDATE) {}
 };
 
 class ScatterUpdateKernelRef : public common_kernel_base {
