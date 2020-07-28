@@ -41,20 +41,22 @@ struct scatter_update : public primitive_base<scatter_update> {
     /// @brief Constructs scatter_update primitive.
     /// @param id This primitive id.
     /// @param dict Input dictionary primitive id.
+    /// @param idupd Input updates primitive id.
     /// @param idx Input indexes primitive id.
     /// @param axis Gathering axis.
     /// @param output_shape Output shape.
     scatter_update(const primitive_id& id,
            const primitive_id& dict,
            const primitive_id& idx,
+           const primitive_id& idupd,
            const scatter_update_axis axis,
            const tensor& output_shape,
            const padding& output_padding = padding())
-        : primitive_base(id, {dict, idx}, output_padding), axis(axis), output_shape(output_shape) {}
+        : primitive_base(id, {dict, idx, idupd}, output_padding), axis(axis), output_shape(output_shape) {}
 
-    /// @brief Gathering axis
+    /// @brief ScatterUpdate axis
     scatter_update_axis axis;
-    /// @brief Gathering input shape
+    /// @brief ScatterUpdate input shape
     tensor output_shape;
 };
 /// @}

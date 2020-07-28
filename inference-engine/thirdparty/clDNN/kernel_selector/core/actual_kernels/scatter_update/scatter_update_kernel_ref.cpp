@@ -118,6 +118,23 @@ static std::string GetIndecesIdxOrder(const scatter_update_params& params, size_
     return GetOrderString(default_order);
 }
 
+static std::string GetUpdatesIndexOrder(const scatter_update_params& params, size_t axis) {
+    std::vector<std::string> default_order = { "b", "f", "y", "x" };
+    const std::string zeroVal = "0";
+
+    size_t updates_dims_num = GetNonEmptyDimsNumber(params.inputs[2]);
+    
+
+    // Shift indices of ScatterUpdate updates input related to output dims
+    for (size_t i = 0; i < updates_dims_num; i++)
+        default_order[i] = default_order[axis + i];
+
+    for (size_t i = updates_dims_num; i < default_order.size(); i++)
+        default_order[i] = zeroVal;
+
+    return GetOrderString(default_order);
+}
+
 CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_params& params, const optional_params&) const {
     CommonDispatchData runInfo;
     const auto& output = params.output;
@@ -134,6 +151,7 @@ CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_param
     runInfo.lws2 = local[2];
 
     runInfo.fp16UnitUsed = params.inputs[0].GetDType() == Datatype::F16;
+    //runInfo.fp16UnitUsed = params.inputs[2].GetDType() == Datatype::F16;
 
     return runInfo;
 }
@@ -143,9 +161,11 @@ JitConstants ScatterUpdateKernelRef::GetJitConstants(const scatter_update_params
 
     jit.AddConstant(MakeJitConstant("DICTIONARY_INDEX_ORDER", GetDictionaryIndexOrder(params, GetScatterUpdateChannelIndex(params))));
     jit.AddConstant(MakeJitConstant("INDICES_INDEX_ORDER", GetIndecesIdxOrder(params, GetScatterUpdateChannelIndex(params))));
+    jit.AddConstant(MakeJitConstant("UPDATES_INDEX_ORDER", GetUpdatesIndexOrder(params, GetScatterUpdateChannelIndex(params))));
 
     if (!params.fused_ops.empty()) {
         FusedOpsConfiguration conf = { "", {"b", "f", "y", "x"}, "val", params.inputs[0].GetDType() };
+    
         jit.Merge(MakeFusedOpsJitConstants(params, {conf}));
     }
 
@@ -182,7 +202,7 @@ KernelsData ScatterUpdateKernelRef::GetKernelsData(const Params& params, const o
 
     auto& kernel = kd.kernels[0];
 
-    FillCLKernelData(kernel, runInfo, params.engineInfo, kernelName, jit, entry_point, "", false, false, 2, GetFusedPrimitiveInputsCount(params));
+    FillCLKernelData(kernel, runInfo, params.engineInfo, kernelName, jit, entry_point, "", false, false, 3, GetFusedPrimitiveInputsCount(params));
 
     kd.estimatedTime = DONT_USE_IF_HAVE_SOMETHING_ELSE;
 

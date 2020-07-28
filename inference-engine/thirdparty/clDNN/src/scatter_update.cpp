@@ -54,6 +54,7 @@ std::string scatter_update_inst::to_string(scatter_update_node const& node) {
     scatter_update_info.add("input id", input.id());
     scatter_update_info.add("axis", desc->axis);
     scatter_update_info.add("output shape", desc->output_shape.to_string());
+    
 
     node_info->add("scatter_update info", scatter_update_info);
     node_info->dump(primitive_description);

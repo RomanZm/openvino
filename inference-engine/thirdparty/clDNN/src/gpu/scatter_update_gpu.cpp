@@ -54,6 +54,7 @@ public:
         scatter_update_params.axis = convert_axis(arg.get_primitive()->axis);
 
         scatter_update_params.inputs.push_back(convert_data_tensor(arg.input(1).get_output_layout()));
+        scatter_update_params.inputs.push_back(convert_data_tensor(arg.input(2).get_output_layout()));
 
         auto& kernel_selector = kernel_selector::scatter_update_kernel_selector::Instance();
         auto best_kernels = kernel_selector.GetBestKernels(scatter_update_params, scatter_update_optional_params);
@@ -76,6 +77,7 @@ attach_scatter_update_gpu::attach_scatter_update_gpu() {
     implementation_map<scatter_update>::add(std::make_tuple(engine_types::ocl, data_types::f32, format::bfyx), val_fw);
     implementation_map<scatter_update>::add(std::make_tuple(engine_types::ocl, data_types::f16, format::bfyx), val_fw);
     implementation_map<scatter_update>::add(std::make_tuple(engine_types::ocl, data_types::i32, format::bfyx), val_fw);
+    implementation_map<scatter_update>::add(std::make_tuple(engine_types::ocl, data_types::f16, format::bfyx), val_fw);
 }
 
 }  // namespace detail
