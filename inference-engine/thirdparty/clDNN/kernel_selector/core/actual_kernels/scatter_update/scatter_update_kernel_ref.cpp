@@ -122,15 +122,32 @@ static std::string GetUpdatesIndexOrder(const scatter_update_params& params, siz
     std::vector<std::string> default_order = { "b", "f", "y", "x" };
     const std::string zeroVal = "0";
 
-    size_t updates_dims_num = GetNonEmptyDimsNumber(params.inputs[2]);
+    size_t indices_dims_num = GetNonEmptyDimsNumber(params.inputs[1]);
+    std::string FYX_size = "(INPUT1_FEATURE_NUM * INPUT1_SIZE_Y * INPUT1_SIZE_X)";
+    std::string YX_size = "(INPUT1_SIZE_Y * INPUT1_SIZE_X)";
+    std::string X_size = "(INPUT1_SIZE_X)";
     
+    // Shift indices of ScatterUpdate updates input related to Indices dims
+    for (size_t i = default_order.size()-1; i > (axis + indices_dims_num - 1); i--)
+        default_order[i] = default_order[i - indices_dims_num + 1];
 
-    // Shift indices of ScatterUpdate updates input related to output dims
-    for (size_t i = 0; i < updates_dims_num; i++)
-        default_order[i] = default_order[axis + i];
-
-    for (size_t i = updates_dims_num; i < default_order.size(); i++)
-        default_order[i] = zeroVal;
+    for (size_t i = axis; i < (axis + indices_dims_num); i++){
+        switch(i - axis){
+            case 0:
+                default_order[i] = "(indices_idx /" + FYX_size + ")";
+                break;
+            case 1:
+                default_order[i] = "((indices_idx %" + FYX_size + ")/" + YX_size + ")";
+                break;
+            case 2:
+                default_order[i] = "(((indices_idx %" + FYX_size + ")%" + YX_size + ")/" + X_size + ")";
+                break;
+            case 3:
+                default_order[i] = "(((indices_idx %" + FYX_size + ")%" + YX_size + ")%" + X_size + ")";
+                break;
+            default: throw "ScatterUpdate support only 4 dimensions (like: b, f, y, x)";
+        }
+    }
 
     return GetOrderString(default_order);
 }
@@ -156,18 +173,23 @@ CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_param
     return runInfo;
 }
 
+static std::string GetOutputIndexOnAxis(size_t axis){
+    std::vector<std::string> default_order = { "b", "f", "y", "x" };
+    return std::string(default_order[axis]);
+}
+
 JitConstants ScatterUpdateKernelRef::GetJitConstants(const scatter_update_params& params) const {
     JitConstants jit = MakeBaseParamsJitConstants(params);
 
     jit.AddConstant(MakeJitConstant("DICTIONARY_INDEX_ORDER", GetDictionaryIndexOrder(params, GetScatterUpdateChannelIndex(params))));
     jit.AddConstant(MakeJitConstant("INDICES_INDEX_ORDER", GetIndecesIdxOrder(params, GetScatterUpdateChannelIndex(params))));
     jit.AddConstant(MakeJitConstant("UPDATES_INDEX_ORDER", GetUpdatesIndexOrder(params, GetScatterUpdateChannelIndex(params))));
-
-    if (!params.fused_ops.empty()) {
+    jit.AddConstant(MakeJitConstant("AXIS_IDX", GetOutputIndexOnAxis(GetScatterUpdateChannelIndex(params))));
+    /*if (!params.fused_ops.empty()) {
         FusedOpsConfiguration conf = { "", {"b", "f", "y", "x"}, "val", params.inputs[0].GetDType() };
     
         jit.Merge(MakeFusedOpsJitConstants(params, {conf}));
-    }
+    }*/
 
     return jit;
 }

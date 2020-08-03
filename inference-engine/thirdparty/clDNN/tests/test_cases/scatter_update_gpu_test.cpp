@@ -29,6 +29,354 @@
 using namespace cldnn;
 using namespace ::tests;
 
+
+TEST(scatter_update_gpu_fp16, d2411_axisB) {
+    //  Dictionary : 2x4x1x1
+    //  Indexes : 2x1x1x1
+    //  Updates : 2x4x1x1
+    //  Axis : 0
+    //  Output : 2x4x1x1
+    //  Input values in fp16
+
+    //  Indexes:
+    //  1.f, 0.f
+    //
+    //  Updates:
+    //  1.f, 7.f, 2.f, 9.f,
+    //  3.f, 6.f, 5.f, 4.f
+    //
+    //  Dictionary:
+    //  0.f, 0.f, 0.f, 0.f,
+    //  0.f, 0.f, 0.f, 0.f
+    //
+    //  Output:
+    //  3.f, 6.f, 5.f, 4.f, 
+    //  1.f, 7.f, 2.f, 9.f
+
+    engine engine;
+
+    auto input1 = memory::allocate(engine, { data_types::f16, format::bfyx, { 2, 4, 1, 1 } }); // Dictionary
+    auto input2 = memory::allocate(engine, { data_types::f32, format::bfyx, { 2, 1, 1, 1 } }); // Indexes
+    auto input3 = memory::allocate(engine, { data_types::f16, format::bfyx, { 2, 4, 1, 1 } });// Updates
+    auto axis = cldnn::scatter_update::scatter_update_axis::along_b;
+
+    set_values(input1, {
+        FLOAT16(0.0f), FLOAT16(0.0f), FLOAT16(0.0f), FLOAT16(0.0f),
+        FLOAT16(0.0f), FLOAT16(0.0f), FLOAT16(0.0f), FLOAT16(0.0f)
+    });
+
+    set_values(input2, {
+        1.f, 0.f
+    });
+
+    set_values(input3, {
+        FLOAT16(1.0f), FLOAT16(7.0f), FLOAT16(2.0f), FLOAT16(9.0f),
+        FLOAT16(3.0f), FLOAT16(6.0f), FLOAT16(5.0f), FLOAT16(4.0f)
+    });
+
+    topology topology;
+    topology.add(input_layout("InputDictionary", input1.get_layout()));
+    topology.add(input_layout("InputText", input2.get_layout()));
+    topology.add(input_layout("InputUpdates", input3.get_layout()));
+    topology.add(
+        scatter_update("scatter_update", "InputDictionary", "InputText", "InputUpdates", axis, tensor(2, 4, 1, 1))
+    );
+    
+    network network(engine, topology); 
+    
+    
+    network.set_input_data("InputDictionary", input1);
+    network.set_input_data("InputText", input2);
+    network.set_input_data("InputUpdates", input3);
+    
+    auto outputs = network.execute();
+    
+
+    auto output = outputs.at("scatter_update").get_memory();
+    auto output_ptr = output.pointer<uint16_t>();
+
+    std::vector<float> expected_results = {
+        3.f, 6.f, 5.f, 4.f, 
+        1.f, 7.f, 2.f, 9.f
+    };
+
+    
+    for (size_t i = 0; i < expected_results.size(); ++i) {
+        EXPECT_EQ(expected_results[i], float16_to_float32(output_ptr[i]));
+    }
+    
+
+}
+
+TEST(scatter_update_gpu_fp16, d8111_axisB) {
+    //  Dictionary : 8x1x1x1
+    //  Indexes : 4x1x1x1
+    //  Updates : 4x1x1x1
+    //  Axis : 0
+    //  Output : 8x1x1x1
+    //  Input values in fp16
+
+    //  Indexes:
+    //  4.f, 3.f, 1.f, 7.f
+    //
+    //  Updates:
+    //  9.f, 10.f, 11.f, 12.f
+    //
+    //  Dictionary:
+    //  1.f, 2.f, 3.f, 4.f, 5.f, 6.f, 7.f, 8.f
+    //
+    //  Output:
+    //  1.f, 11.f, 3.f, 10.f, 9.f, 6.f, 7.f, 12.f
+
+
+    engine engine;
+
+    auto input1 = memory::allocate(engine, { data_types::f16, format::bfyx, { 8, 1, 1, 1 } }); // Dictionary
+    auto input2 = memory::allocate(engine, { data_types::f32, format::bfyx, { 4, 1, 1, 1 } }); // Indexes
+    auto input3 = memory::allocate(engine, { data_types::f16, format::bfyx, { 4, 1, 1, 1 } });// Updates
+    auto axis = cldnn::scatter_update::scatter_update_axis::along_b;
+
+    set_values(input1, {
+        FLOAT16(1.0f), FLOAT16(2.0f), FLOAT16(3.0f), FLOAT16(4.0f), FLOAT16(5.0f), FLOAT16(6.0f), FLOAT16(7.0f), FLOAT16(8.0f)
+    });
+
+    set_values(input2, {
+        4.f, 3.f, 1.f, 7.f
+    });
+
+    set_values(input3, {
+        FLOAT16(9.0f), FLOAT16(10.0f), FLOAT16(11.0f), FLOAT16(12.0f)
+    });
+
+    topology topology;
+    topology.add(input_layout("InputDictionary", input1.get_layout()));
+    topology.add(input_layout("InputText", input2.get_layout()));
+    topology.add(input_layout("InputUpdates", input3.get_layout()));
+    topology.add(
+        scatter_update("scatter_update", "InputDictionary", "InputText", "InputUpdates", axis, tensor(8, 1, 1, 1))
+    );
+    
+    network network(engine, topology); 
+    
+    
+    network.set_input_data("InputDictionary", input1);
+    network.set_input_data("InputText", input2);
+    network.set_input_data("InputUpdates", input3);
+    
+    auto outputs = network.execute();
+    
+
+    auto output = outputs.at("scatter_update").get_memory();
+    auto output_ptr = output.pointer<uint16_t>();
+
+    std::vector<float> expected_results = {
+        1.f, 11.f, 3.f, 10.f, 9.f, 6.f, 7.f, 12.f
+    };
+
+    
+    for (size_t i = 0; i < expected_results.size(); ++i) {
+        EXPECT_EQ(expected_results[i], float16_to_float32(output_ptr[i]));
+    }
+    
+
+}
+
+TEST(scatter_update_gpu_fp16, d4311_axisB) {
+    //  Dictionary : 4x3x1x1
+    //  Indexes : 2x2x1x1
+    //  Updates : 2x2x3x1
+    //  Axis : 0
+    //  Output : 4x3x1x1
+    //  Input values in fp16
+
+    //  Indexes:
+    //  3.f, 1.f,
+    //  2.f, 0.f
+    //
+    //  Updates:
+    //  7.f, 7.f, 7.f,
+    //  8.f, 8.f, 8.f,
+    //
+    //  6.f, 6.f, 6.f,
+    //  9.f, 10.f, 11.f
+    //
+    //  Dictionary:
+    //  1.f, 1.f, 1.f,
+    //  2.f, 2.f, 2.f,
+    //  0.f, 0.f, 0.f,
+    //  3.f, 3.f, 3.f
+    //
+    //  Output:
+    //  9.f, 10.f, 11.f,
+    //  8.f, 8.f, 8.f,
+    //  6.f, 6.f, 6.f,
+    //  7.f, 7.f, 7.f
+
+    engine engine;
+
+    auto input1 = memory::allocate(engine, { data_types::f16, format::bfyx, { 4, 3, 1, 1 } }); // Dictionary
+    auto input2 = memory::allocate(engine, { data_types::f32, format::bfyx, { 2, 2, 1, 1 } }); // Indexes
+    auto input3 = memory::allocate(engine, { data_types::f16, format::bfyx, { 2, 2, 1, 3 } });// Updates
+    auto axis = cldnn::scatter_update::scatter_update_axis::along_b;
+
+    set_values(input1, {
+        FLOAT16(1.0f), FLOAT16(1.0f), FLOAT16(1.0f),
+        FLOAT16(2.0f), FLOAT16(2.0f), FLOAT16(2.0f),
+        FLOAT16(0.0f), FLOAT16(0.0f), FLOAT16(0.0f),
+        FLOAT16(3.0f), FLOAT16(3.0f), FLOAT16(3.0f)
+    });
+
+    set_values(input2, {
+        3.f, 1.f,
+        2.f, 0.f
+    });
+
+    set_values(input3, {
+        FLOAT16(7.0f), FLOAT16(7.0f), FLOAT16(7.0f),
+        FLOAT16(8.0f), FLOAT16(8.0f), FLOAT16(8.0f),
+
+        FLOAT16(6.0f), FLOAT16(6.0f), FLOAT16(6.0f),
+        FLOAT16(9.0f), FLOAT16(10.0f), FLOAT16(11.0f)
+    });
+
+    topology topology;
+    topology.add(input_layout("InputDictionary", input1.get_layout()));
+    topology.add(input_layout("InputText", input2.get_layout()));
+    topology.add(input_layout("InputUpdates", input3.get_layout()));
+    topology.add(
+        scatter_update("scatter_update", "InputDictionary", "InputText", "InputUpdates", axis, tensor(4, 3, 1, 1))
+    );
+    
+    network network(engine, topology); 
+    
+    
+    network.set_input_data("InputDictionary", input1);
+    network.set_input_data("InputText", input2);
+    network.set_input_data("InputUpdates", input3);
+    
+    auto outputs = network.execute();
+    
+
+    auto output = outputs.at("scatter_update").get_memory();
+    auto output_ptr = output.pointer<uint16_t>();
+
+    std::vector<float> expected_results = {
+        9.f, 10.f, 11.f, 
+        8.f, 8.f, 8.f,
+        6.f, 6.f, 6.f, 
+        7.f, 7.f, 7.f
+    };
+
+    
+    for (size_t i = 0; i < expected_results.size(); ++i) {
+        EXPECT_EQ(expected_results[i], float16_to_float32(output_ptr[i]));
+    }
+    
+
+}
+
+TEST(scatter_update_gpu_fp16, d4311_undefined_behavior_axisB) {
+    //  Dictionary : 4x3x1x1
+    //  Indexes : 3x2x1x1
+    //  Updates : 3x2x3x1
+    //  Axis : 0
+    //  Output : 4x3x1x1
+    //  Input values in fp16
+
+    //  Indexes:
+    //  2.f, 1.f,
+    //  3.f, 1.f,
+    //  2.f, 0.f
+    //
+    //  Updates:
+    //  7.f, 7.f, 7.f,
+    //  8.f, 8.f, 8.f,
+    //
+    //  6.f, 6.f, 6.f,
+    //  9.f, 9.f, 9.f,  
+    // 
+    //  5.f, 5.f, 5.f,
+    //  10.f, 11.f, 12.f
+    //
+    //  Dictionary:
+    //  1.f, 1.f, 1.f,
+    //  2.f, 2.f, 2.f,
+    //  0.f, 0.f, 0.f,
+    //  3.f, 3.f, 3.f
+    //
+    //  Output:
+    //  10.f, 11.f, 12.f,
+    //  9.f, 9.f, 9.f,
+    //  5.f, 5.f, 5.f,
+    //  6.f, 6.f, 6.f
+
+    engine engine;
+
+    auto input1 = memory::allocate(engine, { data_types::f16, format::bfyx, { 4, 3, 1, 1 } }); // Dictionary
+    auto input2 = memory::allocate(engine, { data_types::f32, format::bfyx, { 3, 2, 1, 1 } }); // Indexes
+    auto input3 = memory::allocate(engine, { data_types::f16, format::bfyx, { 3, 2, 1, 3 } });// Updates
+    auto axis = cldnn::scatter_update::scatter_update_axis::along_b;
+
+    set_values(input1, {
+        FLOAT16(1.0f), FLOAT16(1.0f), FLOAT16(1.0f),
+        FLOAT16(2.0f), FLOAT16(2.0f), FLOAT16(2.0f),
+        FLOAT16(0.0f), FLOAT16(0.0f), FLOAT16(0.0f),
+        FLOAT16(3.0f), FLOAT16(3.0f), FLOAT16(3.0f)
+    });
+
+    set_values(input2, {
+        2.f, 1.f,
+        3.f, 1.f,
+        2.f, 0.f
+    });
+
+    set_values(input3, {
+        FLOAT16(7.0f), FLOAT16(7.0f), FLOAT16(7.0f),
+        FLOAT16(8.0f), FLOAT16(8.0f), FLOAT16(8.0f),
+
+        FLOAT16(6.0f), FLOAT16(6.0f), FLOAT16(6.0f),
+        FLOAT16(9.0f), FLOAT16(9.0f), FLOAT16(9.0f),
+
+        FLOAT16(5.0f), FLOAT16(5.0f), FLOAT16(5.0f),
+        FLOAT16(10.0f), FLOAT16(11.0f), FLOAT16(12.0f)
+    });
+
+    topology topology;
+    topology.add(input_layout("InputDictionary", input1.get_layout()));
+    topology.add(input_layout("InputText", input2.get_layout()));
+    topology.add(input_layout("InputUpdates", input3.get_layout()));
+    topology.add(
+        scatter_update("scatter_update", "InputDictionary", "InputText", "InputUpdates", axis, tensor(4, 3, 1, 1))
+    );
+    
+    network network(engine, topology); 
+    
+    
+    network.set_input_data("InputDictionary", input1);
+    network.set_input_data("InputText", input2);
+    network.set_input_data("InputUpdates", input3);
+    
+    auto outputs = network.execute();
+    
+
+    auto output = outputs.at("scatter_update").get_memory();
+    auto output_ptr = output.pointer<uint16_t>();
+
+    std::vector<float> expected_results = {
+        10.f, 11.f, 12.f, 
+        9.f, 9.f, 9.f,
+        5.f, 5.f, 5.f, 
+        6.f, 6.f, 6.f
+    };
+
+    
+    for (size_t i = 0; i < expected_results.size(); ++i) {
+        EXPECT_EQ(expected_results[i], float16_to_float32(output_ptr[i]));
+    }
+    
+
+}
+/*
 TEST(scatter_update_gpu_fp16, d14_axisB) {
     //  Dictionary : 2x2x1x1
     //  Indexes : 1x4x1x1
@@ -45,7 +393,6 @@ TEST(scatter_update_gpu_fp16, d14_axisB) {
     //  Output:
     //  1.f, 2.f, 3.f, 4.f, 3.f, 4.f, 1.f, 2.f
 
-    //try{
     engine engine;
 
     auto input1 = memory::allocate(engine, { data_types::f16, format::bfyx, { 2, 2, 1, 1 } }); // Dictionary
@@ -73,7 +420,7 @@ TEST(scatter_update_gpu_fp16, d14_axisB) {
     topology.add(input_layout("InputText", input2.get_layout()));
     topology.add(input_layout("InputUpdates", input3.get_layout()));
     topology.add(
-        scatter_update("scatter_update", "InputDictionary", "InputText", "InputUpdates", axis, tensor(1, 4, 2, 1))//add 3d input after "InputText"
+        scatter_update("scatter_update", "InputDictionary", "InputText", "InputUpdates", axis, tensor(1, 4, 2, 1))
     );
     
     network network(engine, topology); 
@@ -89,7 +436,7 @@ TEST(scatter_update_gpu_fp16, d14_axisB) {
     auto output = outputs.at("scatter_update").get_memory();
     auto output_ptr = output.pointer<uint16_t>();
 
-    std::vector<float> expected_results = {//Change it!!!
+    std::vector<float> expected_results = {
         1.f, 2.f, 3.f, 4.f, 3.f, 4.f, 1.f, 2.f
     };
 
@@ -97,10 +444,7 @@ TEST(scatter_update_gpu_fp16, d14_axisB) {
     for (size_t i = 0; i < expected_results.size(); ++i) {
         EXPECT_EQ(expected_results[i], float16_to_float32(output_ptr[i]));
     }
-    /*}
-    catch(std::exception& e){
-        std::cout << "Exception!: " << e.what() << std::endl;
-    }*/
+    
 
 }
 
@@ -1058,3 +1402,4 @@ TEST(scatter_update_gpu_fp32, d2_axisX) {
         EXPECT_EQ(expected_results[i], output_ptr[i]) << " at i=" << i;
     }
 }
+*/

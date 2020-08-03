@@ -15,18 +15,17 @@
 
 #include "include/include_all.cl"
 
-#define INPUT_AXIS_INDEX (uint)indices[indices_idx]
-#define GET_DICTIONARY_INDEX(idx_order) INPUT0_GET_INDEX(idx_order)
-#define GET_INDICES_INDEX(idx_order) INPUT1_GET_INDEX(idx_order)
-#define GET_UPDATES_INDEX(idx_order) INPUT2_GET_INDEX(idx_order)
+#define UPDATE_GET_IDX(B, F, Y, X) (X + INPUT2_SIZE_X*(Y+INPUT2_SIZE_Y*(F+INPUT2_FEATURE_NUM*B)))
+#define GET_UPDATES_INDEX(idx_order) UPDATE_GET_IDX(idx_order)
 
 KERNEL(scatter_update_ref)(const __global INPUT0_TYPE* dictionary,
                    const __global INPUT1_TYPE* indices,
                    const __global INPUT2_TYPE* updates, 
                    __global OUTPUT_TYPE* output
-#if HAS_FUSED_OPS_DECLS
+/*#if HAS_FUSED_OPS_DECLS
                    , FUSED_OPS_DECLS
 #endif
+*/
 )
 {
     const uint b = get_global_id(0);
@@ -35,29 +34,37 @@ KERNEL(scatter_update_ref)(const __global INPUT0_TYPE* dictionary,
     const uint y = yx / OUTPUT_SIZE_X;
     const uint x = yx % OUTPUT_SIZE_X;
 
-    const uint updates_idx = GET_UPDATES_INDEX(UPDATES_INDEX_ORDER);
-    const uint indices_idx = GET_INDICES_INDEX(INDICES_INDEX_ORDER);
-    const uint dictionary_idx = GET_DICTIONARY_INDEX(DICTIONARY_INDEX_ORDER);
     const uint output_idx = OUTPUT_GET_INDEX(b, f, y, x);
 
+    uint indices_idx = 0;
+    uint updates_idx;
+    const uint indices_size = INPUT1_BATCH_NUM * INPUT1_FEATURE_NUM * INPUT1_SIZE_Y * INPUT1_SIZE_X;
+    while(indices_idx < indices_size){
+        if(AXIS_IDX == indices[indices_idx]){
+            updates_idx = GET_UPDATES_INDEX(UPDATES_INDEX_ORDER);
+            output[output_idx] = updates[updates_idx];
+            /*printf("b: %d f: %d y: %d x: %d || indices_idx: %d; indices: %f updates_idx: %d; updates: %f; "
+                "output_idx: %d; output: %f\n", b, f, y, x, indices_idx, 
+                    indices[indices_idx], updates_idx, updates[updates_idx], output_idx, output[output_idx]);
+            */
+            break;
+        }
+        indices_idx++;
+    }
+    if (indices_idx >= indices_size){
+        output[output_idx] = dictionary[output_idx];
+        //printf("b: %d f: %d y: %d x: %d || \t \t output_idx: %d; output: %f \n",b, f, y, x, output_idx, output[output_idx]);
+    }
     
 
-    INPUT0_TYPE val = dictionary[dictionary_idx];
-    //printf("Dict: %d", val)
-    INPUT2_TYPE replace_el = updates[updates_idx];
-
-    printf("b: %d f: %d x: %d y: %d Index: %f , Updates: %f; Val: %f \n", b, f, x, y, indices[indices_idx], replace_el, val);
-
-#if HAS_FUSED_OPS
-    FUSED_OPS;
-    output[output_idx] = TO_OUTPUT_TYPE(FUSED_OPS_RESULT);
-#else
-    output[output_idx] = ACTIVATION(val, ACTIVATION_PARAMS);
-#endif
+//#if HAS_FUSED_OPS
+    //FUSED_OPS;
+    //output[output_idx] = TO_OUTPUT_TYPE(FUSED_OPS_RESULT);
+//#else
+    //output[output_idx] = ACTIVATION(val, ACTIVATION_PARAMS);
+//#endif
 
 }
 
-#undef GET_INDICES_INDEX
-#undef GET_DICTIONARY_INDEX
 #undef GET_UPDATES_INDEX
-#undef INPUT_AXIS_INDEX
+#undef UPDATE_GET_IDX
