@@ -120,7 +120,6 @@ static std::string GetIndecesIdxOrder(const scatter_update_params& params, size_
 
 static std::string GetUpdatesIndexOrder(const scatter_update_params& params, size_t axis) {
     std::vector<std::string> default_order = { "b", "f", "y", "x" };
-    const std::string zeroVal = "0";
 
     size_t indices_dims_num = GetNonEmptyDimsNumber(params.inputs[1]);
     std::string FYX_size = "(INPUT1_FEATURE_NUM * INPUT1_SIZE_Y * INPUT1_SIZE_X)";
@@ -134,21 +133,27 @@ static std::string GetUpdatesIndexOrder(const scatter_update_params& params, siz
     for (size_t i = axis; i < (axis + indices_dims_num); i++){
         switch(i - axis){
             case 0:
-                default_order[i] = "(indices_idx /" + FYX_size + ")";
+                default_order[i] = "(AXIS_IDX /" + FYX_size + ")";
                 break;
             case 1:
-                default_order[i] = "((indices_idx %" + FYX_size + ")/" + YX_size + ")";
+                default_order[i] = "((AXIS_IDX %" + FYX_size + ")/" + YX_size + ")";
                 break;
             case 2:
-                default_order[i] = "(((indices_idx %" + FYX_size + ")%" + YX_size + ")/" + X_size + ")";
+                default_order[i] = "(((AXIS_IDX %" + FYX_size + ")%" + YX_size + ")/" + X_size + ")";
                 break;
             case 3:
-                default_order[i] = "(((indices_idx %" + FYX_size + ")%" + YX_size + ")%" + X_size + ")";
+                default_order[i] = "(((AXIS_IDX %" + FYX_size + ")%" + YX_size + ")%" + X_size + ")";
                 break;
             default: throw "ScatterUpdate support only 4 dimensions (like: b, f, y, x)";
         }
     }
 
+    return GetOrderString(default_order);
+}
+
+static std::string GetSecondIterOutputIndexOrder(size_t axis){
+    std::vector<std::string> default_order = { "b", "f", "y", "x" };
+    default_order[axis] = "indices[AXIS_IDX]";
     return GetOrderString(default_order);
 }
 
@@ -184,6 +189,7 @@ JitConstants ScatterUpdateKernelRef::GetJitConstants(const scatter_update_params
     jit.AddConstant(MakeJitConstant("DICTIONARY_INDEX_ORDER", GetDictionaryIndexOrder(params, GetScatterUpdateChannelIndex(params))));
     jit.AddConstant(MakeJitConstant("INDICES_INDEX_ORDER", GetIndecesIdxOrder(params, GetScatterUpdateChannelIndex(params))));
     jit.AddConstant(MakeJitConstant("UPDATES_INDEX_ORDER", GetUpdatesIndexOrder(params, GetScatterUpdateChannelIndex(params))));
+    jit.AddConstant(MakeJitConstant("SECOND_ITER_OUTPUT_INDEX_ORDER", GetSecondIterOutputIndexOrder(GetScatterUpdateChannelIndex(params))));
     jit.AddConstant(MakeJitConstant("AXIS_IDX", GetOutputIndexOnAxis(GetScatterUpdateChannelIndex(params))));
     /*if (!params.fused_ops.empty()) {
         FusedOpsConfiguration conf = { "", {"b", "f", "y", "x"}, "val", params.inputs[0].GetDType() };
@@ -213,21 +219,26 @@ KernelsData ScatterUpdateKernelRef::GetKernelsData(const Params& params, const o
     if (!Validate(params, options)) {
         return {};
     }
-
-    KernelData kd = KernelData::Default<scatter_update_params>(params);
+    
+    KernelData kd = KernelData::Default<scatter_update_params>(params, 2);
     scatter_update_params& newParams = *static_cast<scatter_update_params*>(kd.params.get());
 
-    auto runInfo = SetDefault(newParams, options);
-    auto entry_point = GetEntryPoint(kernelName, newParams.layerID, options);
-    auto cldnn_jit = GetJitConstants(newParams);
-    std::string jit = CreateJit(kernelName, cldnn_jit, entry_point);
+    for (int i = 1; i < 3; i++){
+        auto runInfo = SetDefault(newParams, options);
+        auto entry_point = GetEntryPoint(kernelName, newParams.layerID, options);
+        auto cldnn_jit = GetJitConstants(newParams);
+        if (i == 2){
+            cldnn_jit.AddConstant(MakeJitConstant("IS_SECOND_ITER", "true"));
+        }
+        std::string jit = CreateJit(kernelName, cldnn_jit, entry_point);
 
-    auto& kernel = kd.kernels[0];
+        auto& kernel = kd.kernels[i-1];
 
-    FillCLKernelData(kernel, runInfo, params.engineInfo, kernelName, jit, entry_point, "", false, false, 3, GetFusedPrimitiveInputsCount(params));
+        FillCLKernelData(kernel, runInfo, params.engineInfo, kernelName, jit, entry_point, "", false, false, 3, GetFusedPrimitiveInputsCount(params));
+    }
 
     kd.estimatedTime = DONT_USE_IF_HAVE_SOMETHING_ELSE;
-
+    
     return {kd};
 }
 }  // namespace kernel_selector
