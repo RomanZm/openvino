@@ -82,42 +82,6 @@ static inline std::string GetOrderString(std::vector<std::string>& order) {
     return order_str;
 }
 
-static std::string GetDictionaryIndexOrder(const scatter_update_params& params, size_t axis) {
-    std::vector<std::string> default_order = { "b", "f", "y", "x" };
-    const std::string input_axis_index_macro = "INPUT_AXIS_INDEX";
-    const std::string zeroVal = "0";
-
-    size_t dictionary_dims_num = GetNonEmptyDimsNumber(params.inputs[0]);
-    size_t indices_dims_num = GetNonEmptyDimsNumber(params.output) - dictionary_dims_num + 1;
-
-    // Shift indices of ScatterUpdate dictionary input related to output dims
-    for (size_t i = axis + 1; i < dictionary_dims_num; i++)
-        default_order[i] = default_order[i + indices_dims_num - 1];
-
-    for (size_t i = dictionary_dims_num; i < default_order.size(); i++)
-        default_order[i] = zeroVal;
-
-    default_order[axis] = input_axis_index_macro;
-
-    return GetOrderString(default_order);
-}
-
-static std::string GetIndecesIdxOrder(const scatter_update_params& params, size_t axis) {
-    std::vector<std::string> default_order = { "b", "f", "y", "x" };
-    const std::string zero_val = "0";
-
-    size_t indices_dims_num = GetNonEmptyDimsNumber(params.inputs[1]);
-
-    // Shift indices of ScatterUpdate indices input related to output dims
-    for (size_t i = 0; i < indices_dims_num; i++)
-        default_order[i] = default_order[axis + i];
-
-    for (size_t i = indices_dims_num; i < default_order.size(); i++)
-        default_order[i] = zero_val;
-
-    return GetOrderString(default_order);
-}
-
 static std::string GetUpdatesIndexOrder(const scatter_update_params& params, size_t axis) {
     std::vector<std::string> default_order = { "b", "f", "y", "x" };
 
@@ -157,11 +121,47 @@ static std::string GetSecondIterOutputIndexOrder(size_t axis){
     return GetOrderString(default_order);
 }
 
-CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_params& params, const optional_params&) const {
+CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_params& params, const optional_params&, bool is_second) const {
+    //using cldnn::scatter_update::scatter_update_axis::along_b;
+    //using cldnn::scatter_update::scatter_update_axis::along_f;
+    //using cldnn::scatter_update::scatter_update_axis::along_y;
+    //using cldnn::scatter_update::scatter_update_axis::along_x;
+    
     CommonDispatchData runInfo;
     const auto& output = params.output;
 
-    std::vector<size_t> global = {output.Batch().v, output.Feature().v,output.X().v * output.Y().v};
+    std::vector<size_t> global {output.Batch().v, output.Feature().v,output.X().v * output.Y().v};
+    if (is_second){
+        const size_t AXIS = GetScatterUpdateChannelIndex(params);
+        const size_t INDICES_SIZE = params.inputs[1].Batch().v * params.inputs[1].Feature().v *  
+                                     params.inputs[1].Y().v * params.inputs[1].X().v;
+
+        switch (AXIS){
+        case 0:
+            if (INDICES_SIZE > output.Batch().v)
+                throw "Indices size is bigger than Data batch size: Undefined behavior.";
+            global[AXIS] = INDICES_SIZE;
+            break;
+        case 1:
+            if (INDICES_SIZE > output.Feature().v)
+                throw "Indices size is bigger than Data feature size: Undefined behavior.";
+            global[AXIS] = INDICES_SIZE;
+            break;
+        case 2:
+            if (INDICES_SIZE > output.Y().v)
+                throw "Indices size is bigger than Data y size: Undefined behavior.";
+            global[AXIS] = INDICES_SIZE * output.X().v;
+            break;
+        case 3:
+            if (INDICES_SIZE > output.X().v)
+                throw "Indices size is bigger than Data x size: Undefined behavior.";
+            global[AXIS - 1] = INDICES_SIZE * output.Y().v;
+            break;
+        default:
+            throw "ScatterUpdate support only 4 dimension tensors (like: b, f, y, x)";
+        }
+    }
+    
     std::vector<size_t> local = GetOptimalLocalWorkGroupSizes(global, params.engineInfo);
 
     runInfo.gws0 = global[0];
@@ -173,7 +173,7 @@ CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_param
     runInfo.lws2 = local[2];
 
     runInfo.fp16UnitUsed = params.inputs[0].GetDType() == Datatype::F16;
-    //runInfo.fp16UnitUsed = params.inputs[2].GetDType() == Datatype::F16;
+    runInfo.fp16UnitUsed = params.inputs[2].GetDType() == Datatype::F16;
 
     return runInfo;
 }
@@ -186,11 +186,10 @@ static std::string GetOutputIndexOnAxis(size_t axis){
 JitConstants ScatterUpdateKernelRef::GetJitConstants(const scatter_update_params& params) const {
     JitConstants jit = MakeBaseParamsJitConstants(params);
 
-    jit.AddConstant(MakeJitConstant("DICTIONARY_INDEX_ORDER", GetDictionaryIndexOrder(params, GetScatterUpdateChannelIndex(params))));
-    jit.AddConstant(MakeJitConstant("INDICES_INDEX_ORDER", GetIndecesIdxOrder(params, GetScatterUpdateChannelIndex(params))));
     jit.AddConstant(MakeJitConstant("UPDATES_INDEX_ORDER", GetUpdatesIndexOrder(params, GetScatterUpdateChannelIndex(params))));
     jit.AddConstant(MakeJitConstant("SECOND_ITER_OUTPUT_INDEX_ORDER", GetSecondIterOutputIndexOrder(GetScatterUpdateChannelIndex(params))));
     jit.AddConstant(MakeJitConstant("AXIS_IDX", GetOutputIndexOnAxis(GetScatterUpdateChannelIndex(params))));
+    jit.AddConstant(MakeJitConstant("AXIS_VALUE", GetScatterUpdateChannelIndex(params)));
     /*if (!params.fused_ops.empty()) {
         FusedOpsConfiguration conf = { "", {"b", "f", "y", "x"}, "val", params.inputs[0].GetDType() };
     
@@ -223,16 +222,17 @@ KernelsData ScatterUpdateKernelRef::GetKernelsData(const Params& params, const o
     KernelData kd = KernelData::Default<scatter_update_params>(params, 2);
     scatter_update_params& newParams = *static_cast<scatter_update_params*>(kd.params.get());
 
-    for (int i = 1; i < 3; i++){
-        auto runInfo = SetDefault(newParams, options);
+    for (int i = 0; i < 2; i++){
+        
+        auto runInfo = SetDefault(newParams, options, (i == 1));
         auto entry_point = GetEntryPoint(kernelName, newParams.layerID, options);
         auto cldnn_jit = GetJitConstants(newParams);
-        if (i == 2){
+        if (i == 1){
             cldnn_jit.AddConstant(MakeJitConstant("IS_SECOND_ITER", "true"));
         }
         std::string jit = CreateJit(kernelName, cldnn_jit, entry_point);
 
-        auto& kernel = kd.kernels[i-1];
+        auto& kernel = kd.kernels[i];
 
         FillCLKernelData(kernel, runInfo, params.engineInfo, kernelName, jit, entry_point, "", false, false, 3, GetFusedPrimitiveInputsCount(params));
     }
