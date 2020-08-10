@@ -109,7 +109,6 @@ static std::string GetUpdatesIndexOrder(const scatter_update_params& params, siz
             case 3:
                 default_order[i] = "(((AXIS_IDX %" + FYX_size + ")%" + YX_size + ")%" + X_size + ")";
                 break;
-            default: throw "ScatterUpdate support only 4 dimensions (like: b, f, y, x)";
         }
     }
 
@@ -122,7 +121,7 @@ static std::string GetSecondIterOutputIndexOrder(size_t axis){
     return GetOrderString(default_order);
 }
 
-CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_params& params, const optional_params&, bool is_second) const {
+CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_params& params, const optional_params&, bool is_second, JitConstants& jit) const {
     CommonDispatchData runInfo;
     const auto& output = params.output;
 
@@ -133,29 +132,40 @@ CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_param
 
         switch (params.axis){
         case ScatterUpdateAxis::BATCH:
-            if (INDICES_SIZE > output.Batch().v)
-                throw "Indices size is bigger than Data batch size: Undefined behavior.";
+            //if (INDICES_SIZE > output.Batch().v)
+                //throw "Indices size is bigger than Data batch size: Undefined behavior.";
             global[0] = INDICES_SIZE;
             break;
         case ScatterUpdateAxis::FEATURE:
-            if (INDICES_SIZE > output.Feature().v)
-                throw "Indices size is bigger than Data feature size: Undefined behavior.";
+            //if (INDICES_SIZE > output.Feature().v)
+                //throw "Indices size is bigger than Data feature size: Undefined behavior.";
             global[1] = INDICES_SIZE;
             break;
         case ScatterUpdateAxis::Y:
-            if (INDICES_SIZE > output.Y().v)
-                throw "Indices size is bigger than Data y size: Undefined behavior.";
+            //if (INDICES_SIZE > output.Y().v)
+                //throw "Indices size is bigger than Data y size: Undefined behavior.";
             global[2] = INDICES_SIZE * output.X().v;
             break;
         case ScatterUpdateAxis::X:
-            if (INDICES_SIZE > output.X().v)
-                throw "Indices size is bigger than Data x size: Undefined behavior.";
+            //if (INDICES_SIZE > output.X().v) //Find rigth place
+                //throw "Indices size is bigger than Data x size: Undefined behavior.";
             global[2] = INDICES_SIZE * output.Y().v;
             break;
-        default:
-            throw "ScatterUpdate support only 4 dimension tensors (like: b, f, y, x)";
         }
     }
+    else{
+        std::vector<uint> deviders {10, 7, 6, 5, 4, 3, 2};
+        uint devider = 1;
+        for (uint i = 0; i<deviders.size(); i++){
+            if (!(output.Y().v % deviders[i])){
+                global[2] /= deviders[i];
+                devider = deviders[i];
+                break;
+            }
+        }
+        jit.AddConstant(MakeJitConstant("REDUCE_NUMB", devider));
+    }
+
     
     std::vector<size_t> local = GetOptimalLocalWorkGroupSizes(global, params.engineInfo);
 
@@ -230,7 +240,7 @@ KernelsData ScatterUpdateKernelRef::GetKernelsData(const Params& params, const o
     auto cldnn_jit = GetJitConstants(newParams);
 
     for (int i = start_with_iterations; i < 2; i++){
-        auto runInfo = SetDefault(newParams, options, (i == 1));
+        auto runInfo = SetDefault(newParams, options, (i == 1), cldnn_jit);
         auto entry_point = GetEntryPoint(kernelName, newParams.layerID, options);
 
         if (i == 1){

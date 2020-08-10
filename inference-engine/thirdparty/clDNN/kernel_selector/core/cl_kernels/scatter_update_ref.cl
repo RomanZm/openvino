@@ -46,8 +46,10 @@ KERNEL(scatter_update_ref)(const __global INPUT0_TYPE* dictionary,
     
 
     #ifndef IS_SECOND_ITER
-    const uint output_idx = OUTPUT_GET_INDEX(b, f, y, x);
-    output[output_idx] = dictionary[output_idx];
+    for (uint i = 0; i<REDUCE_NUMB; i++){
+        const uint output_idx = OUTPUT_GET_INDEX(b, f, y*REDUCE_NUMB + i, x);
+        output[output_idx] = dictionary[output_idx];
+    }
     //printf("First time!!! b: %d f: %d y: %d x: %d || output_idx: %d; output: %f\n", b, f, y, x, output_idx, output[output_idx]);
     return;
     #endif
