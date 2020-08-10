@@ -18,6 +18,7 @@
 #include "kernel_selector_utils.h"
 #include <string>
 #include <vector>
+#include <iostream>
 
 namespace kernel_selector {
 static size_t GetScatterUpdateChannelIndex(const scatter_update_params& params) {
@@ -122,40 +123,34 @@ static std::string GetSecondIterOutputIndexOrder(size_t axis){
 }
 
 CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_params& params, const optional_params&, bool is_second) const {
-    //using cldnn::scatter_update::scatter_update_axis::along_b;
-    //using cldnn::scatter_update::scatter_update_axis::along_f;
-    //using cldnn::scatter_update::scatter_update_axis::along_y;
-    //using cldnn::scatter_update::scatter_update_axis::along_x;
-    
     CommonDispatchData runInfo;
     const auto& output = params.output;
 
-    std::vector<size_t> global {output.Batch().v, output.Feature().v,output.X().v * output.Y().v};
+    std::vector<size_t> global {output.Batch().v, output.Feature().v, output.X().v * output.Y().v};
     if (is_second){
-        const size_t AXIS = GetScatterUpdateChannelIndex(params);
         const size_t INDICES_SIZE = params.inputs[1].Batch().v * params.inputs[1].Feature().v *  
                                      params.inputs[1].Y().v * params.inputs[1].X().v;
 
-        switch (AXIS){
-        case 0:
+        switch (params.axis){
+        case ScatterUpdateAxis::BATCH:
             if (INDICES_SIZE > output.Batch().v)
                 throw "Indices size is bigger than Data batch size: Undefined behavior.";
-            global[AXIS] = INDICES_SIZE;
+            global[0] = INDICES_SIZE;
             break;
-        case 1:
+        case ScatterUpdateAxis::FEATURE:
             if (INDICES_SIZE > output.Feature().v)
                 throw "Indices size is bigger than Data feature size: Undefined behavior.";
-            global[AXIS] = INDICES_SIZE;
+            global[1] = INDICES_SIZE;
             break;
-        case 2:
+        case ScatterUpdateAxis::Y:
             if (INDICES_SIZE > output.Y().v)
                 throw "Indices size is bigger than Data y size: Undefined behavior.";
-            global[AXIS] = INDICES_SIZE * output.X().v;
+            global[2] = INDICES_SIZE * output.X().v;
             break;
-        case 3:
+        case ScatterUpdateAxis::X:
             if (INDICES_SIZE > output.X().v)
                 throw "Indices size is bigger than Data x size: Undefined behavior.";
-            global[AXIS - 1] = INDICES_SIZE * output.Y().v;
+            global[2] = INDICES_SIZE * output.Y().v;
             break;
         default:
             throw "ScatterUpdate support only 4 dimension tensors (like: b, f, y, x)";
@@ -218,21 +213,32 @@ KernelsData ScatterUpdateKernelRef::GetKernelsData(const Params& params, const o
     if (!Validate(params, options)) {
         return {};
     }
-    
-    KernelData kd = KernelData::Default<scatter_update_params>(params, 2);
-    scatter_update_params& newParams = *static_cast<scatter_update_params*>(kd.params.get());
 
-    for (int i = 0; i < 2; i++){
-        
+    const scatter_update_params& orgParams = static_cast<const scatter_update_params&>(params);
+    const size_t INDICES_SIZE = orgParams.inputs[1].Batch().v * orgParams.inputs[1].Feature().v *  
+                                     orgParams.inputs[1].Y().v * orgParams.inputs[1].X().v;
+    uint start_with_iterations = 0;
+    std::vector<size_t> sizes_output = {orgParams.output.Batch().v, orgParams.output.Feature().v, orgParams.output.Y().v, orgParams.output.X().v};
+
+    const uint axis = GetScatterUpdateChannelIndex(orgParams);
+
+    if (sizes_output.at(axis) == INDICES_SIZE)
+        start_with_iterations = 1;
+
+    KernelData kd = KernelData::Default<scatter_update_params>(params, (2 - start_with_iterations));
+    scatter_update_params& newParams = *static_cast<scatter_update_params*>(kd.params.get());
+    auto cldnn_jit = GetJitConstants(newParams);
+
+    for (int i = start_with_iterations; i < 2; i++){
         auto runInfo = SetDefault(newParams, options, (i == 1));
         auto entry_point = GetEntryPoint(kernelName, newParams.layerID, options);
-        auto cldnn_jit = GetJitConstants(newParams);
+
         if (i == 1){
             cldnn_jit.AddConstant(MakeJitConstant("IS_SECOND_ITER", "true"));
         }
         std::string jit = CreateJit(kernelName, cldnn_jit, entry_point);
 
-        auto& kernel = kd.kernels[i];
+        auto& kernel = kd.kernels[i - start_with_iterations];
 
         FillCLKernelData(kernel, runInfo, params.engineInfo, kernelName, jit, entry_point, "", false, false, 3, GetFusedPrimitiveInputsCount(params));
     }
