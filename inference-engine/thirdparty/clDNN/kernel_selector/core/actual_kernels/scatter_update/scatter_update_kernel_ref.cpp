@@ -108,7 +108,6 @@ static std::string GetUpdatesIndexOrder(const scatter_update_params& params, siz
             case 3:
                 default_order[i] = "(((AXIS_IDX %" + FYX_size + ")%" + YX_size + ")%" + X_size + ")";
                 break;
-            default: throw "ScatterUpdate support only 4 dimensions (like: b, f, y, x)";
         }
     }
 
@@ -138,27 +137,17 @@ CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_param
 
         switch (AXIS){
         case 0:
-            if (INDICES_SIZE > output.Batch().v)
-                throw "Indices size is bigger than Data batch size: Undefined behavior.";
             global[AXIS] = INDICES_SIZE;
             break;
         case 1:
-            if (INDICES_SIZE > output.Feature().v)
-                throw "Indices size is bigger than Data feature size: Undefined behavior.";
             global[AXIS] = INDICES_SIZE;
             break;
         case 2:
-            if (INDICES_SIZE > output.Y().v)
-                throw "Indices size is bigger than Data y size: Undefined behavior.";
             global[AXIS] = INDICES_SIZE * output.X().v;
             break;
         case 3:
-            if (INDICES_SIZE > output.X().v)
-                throw "Indices size is bigger than Data x size: Undefined behavior.";
             global[AXIS - 1] = INDICES_SIZE * output.Y().v;
             break;
-        default:
-            throw "ScatterUpdate support only 4 dimension tensors (like: b, f, y, x)";
         }
     }
     
@@ -219,20 +208,31 @@ KernelsData ScatterUpdateKernelRef::GetKernelsData(const Params& params, const o
         return {};
     }
     
-    KernelData kd = KernelData::Default<scatter_update_params>(params, 2);
-    scatter_update_params& newParams = *static_cast<scatter_update_params*>(kd.params.get());
+    const scatter_update_params& orgParams = static_cast<const scatter_update_params&>(params);
+    const size_t INDICES_SIZE = orgParams.inputs[1].Batch().v * orgParams.inputs[1].Feature().v *  
+                                     orgParams.inputs[1].Y().v * orgParams.inputs[1].X().v;
+    uint start_with_iterations = 0;
+    std::vector<size_t> sizes_output = {orgParams.output.Batch().v, orgParams.output.Feature().v, orgParams.output.Y().v, orgParams.output.X().v};
 
-    for (int i = 0; i < 2; i++){
-        
+    const uint axis = GetScatterUpdateChannelIndex(orgParams);
+
+    if (sizes_output.at(axis) == INDICES_SIZE)
+        start_with_iterations = 1;
+
+    KernelData kd = KernelData::Default<scatter_update_params>(params, (2 - start_with_iterations));
+    scatter_update_params& newParams = *static_cast<scatter_update_params*>(kd.params.get());
+    auto cldnn_jit = GetJitConstants(newParams);
+
+    for (int i = start_with_iterations; i < 2; i++){
         auto runInfo = SetDefault(newParams, options, (i == 1));
         auto entry_point = GetEntryPoint(kernelName, newParams.layerID, options);
-        auto cldnn_jit = GetJitConstants(newParams);
+
         if (i == 1){
             cldnn_jit.AddConstant(MakeJitConstant("IS_SECOND_ITER", "true"));
         }
         std::string jit = CreateJit(kernelName, cldnn_jit, entry_point);
 
-        auto& kernel = kd.kernels[i];
+        auto& kernel = kd.kernels[i - start_with_iterations];
 
         FillCLKernelData(kernel, runInfo, params.engineInfo, kernelName, jit, entry_point, "", false, false, 3, GetFusedPrimitiveInputsCount(params));
     }
