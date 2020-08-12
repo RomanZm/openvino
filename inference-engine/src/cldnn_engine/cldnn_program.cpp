@@ -3575,12 +3575,15 @@ void Program::CreateConvolutionPrimitive(cldnn::topology& topology, InferenceEng
         InferenceEngine::Blob::Ptr dataBlob;
 
         size_t b = 2;
-        size_t f = 1;
+        size_t f = 3;
         size_t y = 1;
         size_t x = 1;
 
+        size_t b_upd = (layer->insData[0].lock()->getTensorDesc().getDims())[0]; // We use Y-axis
+        size_t f_upd = (layer->insData[0].lock()->getTensorDesc().getDims())[1];
+
         indicesDimsVec = { TensorValue(b), TensorValue(f), TensorValue(y), TensorValue(x) };
-        updatesDimsVec = { TensorValue(b), TensorValue(f), TensorValue(y), TensorValue(x) };
+        updatesDimsVec = { TensorValue(b_upd), TensorValue(f_upd), TensorValue(b), TensorValue(f) };
 
         dataBlob = getBlobOrNull(layer, "weights");
 
@@ -3613,7 +3616,6 @@ void Program::CreateConvolutionPrimitive(cldnn::topology& topology, InferenceEng
                                                0);
             indicesIDs.push_back(indicesID);
         }
-
         // create bias primitive
         if (dataBlob != nullptr) {
             cldnn::layout updatesLayout = cldnn::layout(
@@ -3667,9 +3669,8 @@ void Program::CreateConvolutionPrimitive(cldnn::topology& topology, InferenceEng
                                   inputPrimitives[0],
                                   indices[0],
                                   updates[0],
-                                  cldnn::scatter_update::scatter_update_axis::along_b,
+                                  cldnn::scatter_update::scatter_update_axis::along_y,
                                   CldnnTensorFromIEDims(convLayer->outData[0]->getTensorDesc().getDims()));
-
     topology.add(convPrim);
     AddPrimitiveToProfiler(convLayerName, layer);
 }

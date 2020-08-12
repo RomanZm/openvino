@@ -32,26 +32,40 @@ KERNEL(scatter_update_ref)(const __global INPUT0_TYPE* dictionary,
     const uint b = get_global_id(0);
     const uint f = get_global_id(1);
     const uint yx = get_global_id(2);
+    
+
+#ifndef IS_SECOND_ITER
+    const uint y = yx / OUTPUT_SIZE_X;
+    const uint x = yx % OUTPUT_SIZE_X;
+    uint output_idx;
+    if ((FULL_OUTPUT_Y_SIZE - REDUCE_NUMB*y) >= REDUCE_NUMB){
+        for (uint i = 0; i<REDUCE_NUMB; i++){
+            output_idx = OUTPUT_GET_INDEX(b, f, y*REDUCE_NUMB+i, x);
+            output[output_idx] = dictionary[output_idx];
+        }
+    }
+    else if (REST > 0){
+        for (uint i = 0; i<REST; i++){
+            output_idx = OUTPUT_GET_INDEX(b, f, y*REST+i, x);
+            output[output_idx] = dictionary[output_idx];
+        }
+    }
+    //const uint output_idx = OUTPUT_GET_INDEX(b, f, y, x);
+    //output[output_idx] = dictionary[output_idx];
+    //printf("First time!!! b: %d f: %d y: %d x: %d || output_idx: %d; output: %f; OUTPUT_SIZE_Y: %d\n", b, f, y, x, output_idx, output[output_idx], OUTPUT_SIZE_Y);
+    return;
+#else
+    
     uint x, y;
     if (AXIS_VALUE == 3){
         x = yx / OUTPUT_SIZE_Y;
-        y = yx % OUTPUT_SIZE_Y;
-        
+        y = yx % OUTPUT_SIZE_Y;    
     }
     else{
         y = yx / OUTPUT_SIZE_X;
         x = yx % OUTPUT_SIZE_X;
     }
 
-    
-
-    #ifndef IS_SECOND_ITER
-    const uint output_idx = OUTPUT_GET_INDEX(b, f, y, x);
-    output[output_idx] = dictionary[output_idx];
-    //printf("First time!!! b: %d f: %d y: %d x: %d || output_idx: %d; output: %f\n", b, f, y, x, output_idx, output[output_idx]);
-    return;
-    #endif
-    
     const uint sec_output_idx = GET_OUTPUT_INDEX(SECOND_ITER_OUTPUT_INDEX_ORDER);
     const uint updates_idx = GET_UPDATES_INDEX(UPDATES_INDEX_ORDER);
     output[sec_output_idx] = updates[updates_idx];
@@ -60,6 +74,7 @@ KERNEL(scatter_update_ref)(const __global INPUT0_TYPE* dictionary,
     
     //printf("First time!!! b: %d f: %d y: %d x: %d || output_idx: %d; output: %f\n", b, f, y, x, output_idx, output[output_idx]);
     
+#endif
 //#if HAS_FUSED_OPS
     //FUSED_OPS;
     //output[output_idx] = TO_OUTPUT_TYPE(FUSED_OPS_RESULT);

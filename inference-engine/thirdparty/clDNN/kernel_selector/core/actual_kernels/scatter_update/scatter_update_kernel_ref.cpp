@@ -120,12 +120,8 @@ static std::string GetSecondIterOutputIndexOrder(size_t axis){
     return GetOrderString(default_order);
 }
 
-CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_params& params, const optional_params&, bool is_second) const {
-    //using cldnn::scatter_update::scatter_update_axis::along_b;
-    //using cldnn::scatter_update::scatter_update_axis::along_f;
-    //using cldnn::scatter_update::scatter_update_axis::along_y;
-    //using cldnn::scatter_update::scatter_update_axis::along_x;
-    
+CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_params& params, const optional_params&, bool is_second, JitConstants& jit) const {
+
     CommonDispatchData runInfo;
     const auto& output = params.output;
 
@@ -149,6 +145,27 @@ CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_param
             global[AXIS - 1] = INDICES_SIZE * output.Y().v;
             break;
         }
+    }
+    else{
+        std::vector<uint> deviders {2000, 500, 100, 60, 20, 5, 3, 2};
+        uint devider = 1;
+        uint rest = 0;
+        uint new_output_y_size = output.Y().v;
+        for (uint i = 0; i<deviders.size()-1; i++){
+            if (output.Y().v >= deviders[i]){
+                devider = deviders[i+1];
+                rest = output.Y().v % devider;
+                if (rest != 0)
+                    new_output_y_size = output.Y().v / devider + 1;
+                else
+                    new_output_y_size = output.Y().v / devider;
+                global[2] = output.X().v * new_output_y_size;
+                break;
+            }
+        }
+        jit.AddConstant(MakeJitConstant("REDUCE_NUMB", devider));
+        jit.AddConstant(MakeJitConstant("REST", rest));
+        jit.AddConstant(MakeJitConstant("FULL_OUTPUT_Y_SIZE", output.Y().v));
     }
     
     std::vector<size_t> local = GetOptimalLocalWorkGroupSizes(global, params.engineInfo);
@@ -224,7 +241,7 @@ KernelsData ScatterUpdateKernelRef::GetKernelsData(const Params& params, const o
     auto cldnn_jit = GetJitConstants(newParams);
 
     for (int i = start_with_iterations; i < 2; i++){
-        auto runInfo = SetDefault(newParams, options, (i == 1));
+        auto runInfo = SetDefault(newParams, options, (i == 1), cldnn_jit);
         auto entry_point = GetEntryPoint(kernelName, newParams.layerID, options);
 
         if (i == 1){
