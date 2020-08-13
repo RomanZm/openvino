@@ -120,7 +120,7 @@ static std::string GetSecondIterOutputIndexOrder(size_t axis){
     return GetOrderString(default_order);
 }
 
-CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_params& params, const optional_params&, bool is_second, JitConstants& jit) const {
+CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_params& params, const optional_params&, bool is_second/*, JitConstants& jit*/) const {
 
     CommonDispatchData runInfo;
     const auto& output = params.output;
@@ -145,7 +145,7 @@ CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_param
             global[AXIS - 1] = INDICES_SIZE * output.Y().v;
             break;
         }
-    }
+    }/*
     else{
         std::vector<uint> deviders {2000, 500, 100, 60, 20, 5, 3, 2};
         uint devider = 1;
@@ -167,7 +167,7 @@ CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_param
         jit.AddConstant(MakeJitConstant("REST", rest));
         jit.AddConstant(MakeJitConstant("FULL_OUTPUT_Y_SIZE", output.Y().v));
     }
-    
+    */
     std::vector<size_t> local = GetOptimalLocalWorkGroupSizes(global, params.engineInfo);
 
     runInfo.gws0 = global[0];
@@ -241,7 +241,7 @@ KernelsData ScatterUpdateKernelRef::GetKernelsData(const Params& params, const o
     auto cldnn_jit = GetJitConstants(newParams);
 
     for (int i = start_with_iterations; i < 2; i++){
-        auto runInfo = SetDefault(newParams, options, (i == 1), cldnn_jit);
+        auto runInfo = SetDefault(newParams, options, (i == 1)/*, cldnn_jit*/);
         auto entry_point = GetEntryPoint(kernelName, newParams.layerID, options);
 
         if (i == 1){
