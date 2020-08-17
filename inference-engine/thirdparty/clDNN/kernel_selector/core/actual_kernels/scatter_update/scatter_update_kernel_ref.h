@@ -45,11 +45,11 @@ public:
     virtual CommonDispatchData SetDefault(const scatter_update_params& params, const optional_params&, bool is_second) const;
     KernelsData GetKernelsData(const Params& params, const optional_params& options) const override;
     ParamsKey GetSupportedKey() const override;
-    /*std::vector<FusedOpType> GetSupportedFusedOps() const override {
+    std::vector<FusedOpType> GetSupportedFusedOps() const override {
         return { FusedOpType::QUANTIZE,
                  FusedOpType::SCALE,
                  FusedOpType::ACTIVATION };
-    }*/
+    }
 
 protected:
     bool Validate(const Params& p, const optional_params& o) const override;

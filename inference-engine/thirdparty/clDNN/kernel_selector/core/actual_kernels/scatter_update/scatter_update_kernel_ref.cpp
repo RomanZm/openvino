@@ -174,11 +174,11 @@ JitConstants ScatterUpdateKernelRef::GetJitConstants(const scatter_update_params
     jit.AddConstant(MakeJitConstant("SECOND_ITER_OUTPUT_INDEX_ORDER", GetSecondIterOutputIndexOrder(GetScatterUpdateChannelIndex(params))));
     jit.AddConstant(MakeJitConstant("OUTPUT_INDEX_ON_AXIS", GetOutputIndexOnAxis(GetScatterUpdateChannelIndex(params))));
     jit.AddConstant(MakeJitConstant("AXIS_VALUE", GetScatterUpdateChannelIndex(params)));
-    /*if (!params.fused_ops.empty()) {
+    if (!params.fused_ops.empty()) {
         FusedOpsConfiguration conf = { "", {"b", "f", "y", "x"}, "val", params.inputs[0].GetDType() };
     
         jit.Merge(MakeFusedOpsJitConstants(params, {conf}));
-    }*/
+    }
 
     return jit;
 }

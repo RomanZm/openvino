@@ -22,10 +22,10 @@ KERNEL(scatter_update_ref)(const __global INPUT0_TYPE* dictionary,
                    const __global INPUT1_TYPE* indices,
                    const __global INPUT2_TYPE* updates, 
                    __global OUTPUT_TYPE* output
-/*#if HAS_FUSED_OPS_DECLS
+#if HAS_FUSED_OPS_DECLS
                    , FUSED_OPS_DECLS
 #endif
-*/
+
 )
 {
     const uint b = get_global_id(0);
@@ -37,9 +37,7 @@ KERNEL(scatter_update_ref)(const __global INPUT0_TYPE* dictionary,
     const uint x = yx % OUTPUT_SIZE_X;
 
     const uint output_idx = OUTPUT_GET_INDEX(b, f, y, x);
-    output[output_idx] = dictionary[output_idx];
-    //printf("First time!!! b: %d f: %d y: %d x: %d || output_idx: %d; output: %f\n", b, f, y, x, output_idx, output[output_idx]);
-    return;
+    INPUT0_TYPE val = dictionary[output_idx];
 #else
     uint x, y;
     if (AXIS_VALUE == 3){
@@ -50,22 +48,17 @@ KERNEL(scatter_update_ref)(const __global INPUT0_TYPE* dictionary,
         y = yx / OUTPUT_SIZE_X;
         x = yx % OUTPUT_SIZE_X;
     }
-    const uint sec_output_idx = GET_OUTPUT_INDEX(SECOND_ITER_OUTPUT_INDEX_ORDER);
+    const uint output_idx = GET_OUTPUT_INDEX(SECOND_ITER_OUTPUT_INDEX_ORDER);
     const uint updates_idx = GET_UPDATES_INDEX(UPDATES_INDEX_ORDER);
-    output[sec_output_idx] = updates[updates_idx];
-    //printf("Second!!! b: %d f: %d y: %d x: %d || updates_idx: %d; updates: %f; output_idx: %d; output: %f \n",
-               // b, f, y, x, updates_idx, updates[updates_idx], output_idx, output[sec_output_idx]);
-
+    INPUT2_TYPE val = updates[updates_idx];
 #endif
     
-    
-//#if HAS_FUSED_OPS
-    //FUSED_OPS;
-    //output[output_idx] = TO_OUTPUT_TYPE(FUSED_OPS_RESULT);
-//#else
-    //output[output_idx] = ACTIVATION(val, ACTIVATION_PARAMS);
-//#endif
-
+#if HAS_FUSED_OPS
+    FUSED_OPS;
+    output[output_idx] = TO_OUTPUT_TYPE(FUSED_OPS_RESULT);
+#else
+    output[output_idx] = ACTIVATION(val, ACTIVATION_PARAMS);
+#endif
 }
 
 #undef GET_UPDATES_INDEX
