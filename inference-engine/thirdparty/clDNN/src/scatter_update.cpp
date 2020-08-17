@@ -27,18 +27,53 @@ primitive_type_id scatter_update::type_id() {
     return &instance;
 }
 
+static size_t GetNonEmptyDimsNumber(const tensor& tensor) {
+    if (tensor.count() != 1) {
+        // Count the number of "one size" dimensions starting with X to Batch
+        size_t one_size_dims = 0;
+        std::vector<int32_t> dims = tensor.sizes(format::bfyx);
+        for (int i = dims.size() - 1; i>=0; i--) {
+            if (dims[i] == 1)
+                one_size_dims++;
+            else
+                break;
+        }
+        return dims.size() - one_size_dims;
+    } else {
+        return 1;
+    }
+}
+
 layout scatter_update_inst::calc_output_layout(scatter_update_node const& node) {
     auto desc = node.get_primitive();
 
-    auto input_layout = node.input(0).get_output_layout();
-    auto input_format = input_layout.format;
+    const int32_t axis = desc->axis;
+    const int32_t indices_size = node.input(1).get_output_layout().size.count();
+    const int32_t number_of_dims = 4;
+    const size_t nonempty_indices_dims = GetNonEmptyDimsNumber(node.input(1).get_output_layout().size);
 
     auto output_shape = desc->output_shape;
+
+    auto input_layout = node.input(0).get_output_layout();
+    auto input_format = input_layout.format;
 
     auto output_type = input_layout.data_type;
     if (node.has_fused_primitives()) {
         output_type = node.get_fused_output_layout().data_type;
     }
+
+    if (indices_size > output_shape.sizes(format::bfyx)[axis]){
+        CLDNN_ERROR_MESSAGE(node.id(),
+            "Undefined behavior Scatter_Update: indices size must not be larger than the output projection to the axis.");
+    }
+    
+    if (nonempty_indices_dims + axis > 4){
+        CLDNN_ERROR_MESSAGE(node.id(),
+            "Undefined behavior Scatter_Update: indices dimention must not be larger than the updates[:axis] dimention.");
+    }
+    
+    if (axis < 0 || axis >= number_of_dims)
+        CLDNN_ERROR_MESSAGE(node.id(), "Incorrect axis value! Scatter_Update only supports four-dimensional shape");
 
     return layout{output_type, input_format, output_shape};
 }
