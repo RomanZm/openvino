@@ -37,20 +37,6 @@ KERNEL(scatter_update_ref)(const __global INPUT0_TYPE* dictionary,
 #ifndef IS_SECOND_ITER
     const uint y = yx / OUTPUT_SIZE_X;
     const uint x = yx % OUTPUT_SIZE_X;
-    /*
-    uint output_idx;
-    if ((FULL_OUTPUT_Y_SIZE - REDUCE_NUMB*y) >= REDUCE_NUMB){
-        for (uint i = 0; i<REDUCE_NUMB; i++){
-            output_idx = OUTPUT_GET_INDEX(b, f, y*REDUCE_NUMB+i, x);
-            output[output_idx] = dictionary[output_idx];
-        }
-    }
-    else if (REST > 0){
-        for (uint i = 0; i<REST; i++){
-            output_idx = OUTPUT_GET_INDEX(b, f, y*REST+i, x);
-            output[output_idx] = dictionary[output_idx];
-        }
-    }*/
     const uint output_idx = OUTPUT_GET_INDEX(b, f, y, x);
     output[output_idx] = dictionary[output_idx];
     //printf("First time!!! b: %d f: %d y: %d x: %d || output_idx: %d; output: %f;\n", b, f, y, x, output_idx, output[output_idx]);
@@ -73,7 +59,7 @@ KERNEL(scatter_update_ref)(const __global INPUT0_TYPE* dictionary,
     //if (f%10 == 0 && x % 50 == 0){
         //printf("Second!!! b: %d f: %d y: %d x: %d || updates_idx: %d; updates: %f; output_idx: %d; output: %f|| OUTPUT_SIZE_Y: %d \n",
                 //b, f, y, x, updates_idx, updates[updates_idx], sec_output_idx, output[sec_output_idx], OUTPUT_SIZE_Y);
-    }
+    //}
     
     //printf("First time!!! b: %d f: %d y: %d x: %d || output_idx: %d; output: %f\n", b, f, y, x, output_idx, output[output_idx]);
     

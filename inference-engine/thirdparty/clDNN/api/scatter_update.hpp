@@ -34,8 +34,8 @@ struct scatter_update : public primitive_base<scatter_update> {
     enum scatter_update_axis {
         along_b,
         along_f,
-        along_x,
-        along_y
+        along_y,
+        along_x
     };
 
     /// @brief Constructs scatter_update primitive.
