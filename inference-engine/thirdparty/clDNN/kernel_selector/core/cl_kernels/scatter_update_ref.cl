@@ -15,8 +15,7 @@
 
 #include "include/include_all.cl"
 
-#define UPDATE_GET_IDX(B, F, Y, X) (X + INPUT2_SIZE_X*(Y+INPUT2_SIZE_Y*(F+INPUT2_FEATURE_NUM*B)))
-#define GET_UPDATES_INDEX(idx_order) UPDATE_GET_IDX(idx_order)
+#define GET_UPDATES_INDEX(idx_order) INPUT2_GET_INDEX(idx_order)
 #define GET_OUTPUT_INDEX(idx_order) OUTPUT_GET_INDEX(idx_order)
 
 KERNEL(scatter_update_ref)(const __global INPUT0_TYPE* dictionary,
@@ -32,35 +31,33 @@ KERNEL(scatter_update_ref)(const __global INPUT0_TYPE* dictionary,
     const uint b = get_global_id(0);
     const uint f = get_global_id(1);
     const uint yx = get_global_id(2);
+
+#ifndef IS_SECOND_ITER
+    const uint y = yx / OUTPUT_SIZE_X;
+    const uint x = yx % OUTPUT_SIZE_X;
+
+    const uint output_idx = OUTPUT_GET_INDEX(b, f, y, x);
+    output[output_idx] = dictionary[output_idx];
+    //printf("First time!!! b: %d f: %d y: %d x: %d || output_idx: %d; output: %f\n", b, f, y, x, output_idx, output[output_idx]);
+    return;
+#else
     uint x, y;
     if (AXIS_VALUE == 3){
         x = yx / OUTPUT_SIZE_Y;
         y = yx % OUTPUT_SIZE_Y;
-        
     }
     else{
         y = yx / OUTPUT_SIZE_X;
         x = yx % OUTPUT_SIZE_X;
     }
-
-    
-
-    #ifndef IS_SECOND_ITER
-    for (uint i = 0; i<REDUCE_NUMB; i++){
-        const uint output_idx = OUTPUT_GET_INDEX(b, f, y*REDUCE_NUMB + i, x);
-        output[output_idx] = dictionary[output_idx];
-    }
-    //printf("First time!!! b: %d f: %d y: %d x: %d || output_idx: %d; output: %f\n", b, f, y, x, output_idx, output[output_idx]);
-    return;
-    #endif
-    
     const uint sec_output_idx = GET_OUTPUT_INDEX(SECOND_ITER_OUTPUT_INDEX_ORDER);
     const uint updates_idx = GET_UPDATES_INDEX(UPDATES_INDEX_ORDER);
     output[sec_output_idx] = updates[updates_idx];
     //printf("Second!!! b: %d f: %d y: %d x: %d || updates_idx: %d; updates: %f; output_idx: %d; output: %f \n",
                // b, f, y, x, updates_idx, updates[updates_idx], output_idx, output[sec_output_idx]);
+
+#endif
     
-    //printf("First time!!! b: %d f: %d y: %d x: %d || output_idx: %d; output: %f\n", b, f, y, x, output_idx, output[output_idx]);
     
 //#if HAS_FUSED_OPS
     //FUSED_OPS;
@@ -72,5 +69,4 @@ KERNEL(scatter_update_ref)(const __global INPUT0_TYPE* dictionary,
 }
 
 #undef GET_UPDATES_INDEX
-#undef UPDATE_GET_IDX
 #undef GET_OUTPUT_INDEX
