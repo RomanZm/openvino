@@ -35,7 +35,9 @@ struct scatter_update : public primitive_base<scatter_update> {
         along_b,
         along_f,
         along_y,
-        along_x
+        along_x,
+        along_z,
+        along_w
     };
 
     /// @brief Constructs scatter_update primitive.

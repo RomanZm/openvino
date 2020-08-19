@@ -491,6 +491,8 @@ enum class GatherAxis {
 enum class ScatterUpdateAxis {
     X,
     Y,
+    Z,
+    W,
     FEATURE,
     BATCH,
 };

@@ -15,7 +15,7 @@
 
 #include "include/include_all.cl"
 
-#define GET_UPDATES_INDEX(idx_order) INPUT2_GET_INDEX(idx_order)
+#define GET_UPDATES_INDEX(prefix, num, idx_order) CAT(CAT(prefix, num), _GET_INDEX)(idx_order)
 #define GET_OUTPUT_INDEX(idx_order) OUTPUT_GET_INDEX(idx_order)
 
 KERNEL(scatter_update_ref)(const __global INPUT0_TYPE* dictionary,
@@ -28,36 +28,125 @@ KERNEL(scatter_update_ref)(const __global INPUT0_TYPE* dictionary,
 
 )
 {
-    const uint b = get_global_id(0);
-    const uint f = get_global_id(1);
-    const uint yx = get_global_id(2);
-
 #ifndef IS_SECOND_ITER
-    const uint y = yx / OUTPUT_SIZE_X;
-    const uint x = yx % OUTPUT_SIZE_X;
+    #if OUTPUT_DIMS == 6
+        #define ORDER b,f,w,z,y,x
+        const uint x = (uint)get_global_id(0) % OUTPUT_SIZE_X;
+        const uint y = (uint)get_global_id(0) / OUTPUT_SIZE_X;
+        const uint z = (uint)get_global_id(1) % OUTPUT_SIZE_Z;
+        const uint w = (uint)get_global_id(1) / OUTPUT_SIZE_Z;
+        const uint f = (uint)get_global_id(2) % OUTPUT_FEATURE_NUM;
+        const uint b = (uint)get_global_id(2) / OUTPUT_FEATURE_NUM;
+    #elif OUTPUT_DIMS == 5
+        #define ORDER b,f,z,y,x
+        const uint x = (uint)get_global_id(0);
+        const uint y = (uint)get_global_id(1) % OUTPUT_SIZE_Y;
+        const uint z = (uint)get_global_id(1) / OUTPUT_SIZE_Y;
+        const uint f = (uint)get_global_id(2) % OUTPUT_FEATURE_NUM;
+        const uint b = (uint)get_global_id(2) / OUTPUT_FEATURE_NUM;
+    #elif OUTPUT_DIMS == 4
+        #define ORDER b,f,y,x
+        const uint x = (uint)get_global_id(0);
+        const uint y = (uint)get_global_id(1);
+        const uint f = (uint)get_global_id(2) % OUTPUT_FEATURE_NUM;
+        const uint b = (uint)get_global_id(2) / OUTPUT_FEATURE_NUM;
+    #endif
 
-    const uint output_idx = OUTPUT_GET_INDEX(b, f, y, x);
-    INPUT0_TYPE val = dictionary[output_idx];
+    const uint output_idx = GET_OUTPUT_INDEX(ORDER);
+    output[output_idx] = dictionary[output_idx];
 #else
-    uint x, y;
-    if (AXIS_VALUE == 3){
-        x = yx / OUTPUT_SIZE_Y;
-        y = yx % OUTPUT_SIZE_Y;
-    }
-    else{
-        y = yx / OUTPUT_SIZE_X;
-        x = yx % OUTPUT_SIZE_X;
-    }
-    const uint output_idx = GET_OUTPUT_INDEX(SECOND_ITER_OUTPUT_INDEX_ORDER);
-    const uint updates_idx = GET_UPDATES_INDEX(UPDATES_INDEX_ORDER);
-    INPUT2_TYPE val = updates[updates_idx];
-#endif
+    #if OUTPUT_DIMS == 6
+        #define ORDER b,f,w,z,y,x
+        uint b, f, w, z, y, x;
+        switch(AXIS_VALUE){
+        case 0:
+        case 2:
+        case 4:
+            f = (uint)get_global_id(2) % OUTPUT_FEATURE_NUM;
+            b = (uint)get_global_id(2) / OUTPUT_FEATURE_NUM;
+            x = (uint)get_global_id(0) % OUTPUT_SIZE_X;
+            y = (uint)get_global_id(0) / OUTPUT_SIZE_X;
+            z = (uint)get_global_id(1) % OUTPUT_SIZE_Z;
+            w = (uint)get_global_id(1) / OUTPUT_SIZE_Z;
+            break;
+        case 1:
+            f = (uint)get_global_id(2) / OUTPUT_BATCH_NUM;
+            b = (uint)get_global_id(2) % OUTPUT_BATCH_NUM;
+            x = (uint)get_global_id(0) % OUTPUT_SIZE_X;
+            y = (uint)get_global_id(0) / OUTPUT_SIZE_X;
+            z = (uint)get_global_id(1) % OUTPUT_SIZE_Z;
+            w = (uint)get_global_id(1) / OUTPUT_SIZE_Z;
+            break;
+        case 3:
+            f = (uint)get_global_id(2) % OUTPUT_FEATURE_NUM;
+            b = (uint)get_global_id(2) / OUTPUT_FEATURE_NUM;
+            x = (uint)get_global_id(0) % OUTPUT_SIZE_X;
+            y = (uint)get_global_id(0) / OUTPUT_SIZE_X;
+            z = (uint)get_global_id(1) / OUTPUT_SIZE_W;
+            w = (uint)get_global_id(1) % OUTPUT_SIZE_W;
+            break;
+        case 5:
+            f = (uint)get_global_id(2) % OUTPUT_FEATURE_NUM;
+            b = (uint)get_global_id(2) / OUTPUT_FEATURE_NUM;
+            x = (uint)get_global_id(0) / OUTPUT_SIZE_Y;
+            y = (uint)get_global_id(0) % OUTPUT_SIZE_Y;
+            z = (uint)get_global_id(1) % OUTPUT_SIZE_Z;
+            w = (uint)get_global_id(1) / OUTPUT_SIZE_Z;
+            break;
+        }
+    #elif OUTPUT_DIMS == 5
+        #define ORDER b,f,z,y,x
+        const uint z = (uint)get_global_id(1);
+        uint f;
+        uint b;
+        uint x;
+        uint y;
+        switch(AXIS_VALUE){
+        case 0:
+        case 3:
+            f = (uint)get_global_id(2) % OUTPUT_FEATURE_NUM;
+            b = (uint)get_global_id(2) / OUTPUT_FEATURE_NUM;
+            x = (uint)get_global_id(0) % OUTPUT_SIZE_X;
+            y = (uint)get_global_id(0) / OUTPUT_SIZE_X;
+            break;
+        case 1:
+            f = (uint)get_global_id(2) / OUTPUT_BATCH_NUM;
+            b = (uint)get_global_id(2) % OUTPUT_BATCH_NUM;
+            x = (uint)get_global_id(0) % OUTPUT_SIZE_X;
+            y = (uint)get_global_id(0) / OUTPUT_SIZE_X;
+            break;
+        case 4:
+            f = (uint)get_global_id(2) % OUTPUT_FEATURE_NUM;
+            b = (uint)get_global_id(2) / OUTPUT_FEATURE_NUM;
+            x = (uint)get_global_id(0) / OUTPUT_SIZE_Y;
+            y = (uint)get_global_id(0) % OUTPUT_SIZE_Y;
+            break;
+        }
+    #elif OUTPUT_DIMS == 4
+        #define ORDER b,f,y,x
+        const uint x = (uint)get_global_id(0);
+        const uint y = (uint)get_global_id(1);
+        uint f;
+        uint b;
+        if (AXIS_VALUE == 0){
+            f = (uint)get_global_id(2) % OUTPUT_FEATURE_NUM;
+            b = (uint)get_global_id(2) / OUTPUT_FEATURE_NUM;
+        }
+        else{
+            f = (uint)get_global_id(2) / OUTPUT_BATCH_NUM;
+            b = (uint)get_global_id(2) % OUTPUT_BATCH_NUM;
+        }
+    #endif
     
+    const uint output_idx = GET_OUTPUT_INDEX(SECOND_ITER_OUTPUT_INDEX_ORDER);
+    const uint updates_idx = GET_UPDATES_INDEX(INPUT2, , UPDATES_INDEX_ORDER);
+    INPUT2_TYPE val = updates[updates_idx];
 #if HAS_FUSED_OPS
     FUSED_OPS;
     output[output_idx] = TO_OUTPUT_TYPE(FUSED_OPS_RESULT);
 #else
     output[output_idx] = ACTIVATION(val, ACTIVATION_PARAMS);
+#endif
 #endif
 }
 

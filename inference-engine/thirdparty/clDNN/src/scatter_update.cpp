@@ -27,7 +27,7 @@ primitive_type_id scatter_update::type_id() {
     return &instance;
 }
 
-static size_t GetNonEmptyDimsNumber(const tensor& tensor) {
+static uint GetNonEmptyDimsNumber(const tensor& tensor) {
     if (tensor.count() != 1) {
         // Count the number of "one size" dimensions starting with X to Batch
         size_t one_size_dims = 0;
@@ -48,9 +48,9 @@ layout scatter_update_inst::calc_output_layout(scatter_update_node const& node) 
     auto desc = node.get_primitive();
 
     const int32_t axis = desc->axis;
-    const int32_t indices_size = node.input(1).get_output_layout().size.count();
-    const int32_t number_of_dims = 4;
-    const size_t nonempty_indices_dims = GetNonEmptyDimsNumber(node.input(1).get_output_layout().size);
+    //const int32_t indices_size = node.input(1).get_output_layout().size.count();
+    const int32_t number_of_dims = node.input(1).get_output_layout().size.sizes().size();
+    const int32_t nonempty_indices_dims = GetNonEmptyDimsNumber(node.input(1).get_output_layout().size);
 
     auto output_shape = desc->output_shape;
 
@@ -62,18 +62,18 @@ layout scatter_update_inst::calc_output_layout(scatter_update_node const& node) 
         output_type = node.get_fused_output_layout().data_type;
     }
 
-    if (indices_size > output_shape.sizes(format::bfyx)[axis]){
+    if (axis < 0 || axis >= number_of_dims)
+        CLDNN_ERROR_MESSAGE(node.id(), "Incorrect axis value! Scatter_Update only supports four-dimensional shape");
+    /*
+    if (indices_size > output_shape.sizes()[axis]){
         CLDNN_ERROR_MESSAGE(node.id(),
             "Undefined behavior Scatter_Update: indices size must not be larger than the output projection to the axis.");
     }
-    
-    if (nonempty_indices_dims + axis > 4){
+    */
+    if (nonempty_indices_dims + axis > number_of_dims){
         CLDNN_ERROR_MESSAGE(node.id(),
             "Undefined behavior Scatter_Update: indices dimention must not be larger than the updates[:axis] dimention.");
     }
-    
-    if (axis < 0 || axis >= number_of_dims)
-        CLDNN_ERROR_MESSAGE(node.id(), "Incorrect axis value! Scatter_Update only supports four-dimensional shape");
 
     return layout{output_type, input_format, output_shape};
 }

@@ -32,6 +32,10 @@ kernel_selector::scatter_update_axis convert_axis(scatter_update::scatter_update
             return kernel_selector::scatter_update_axis::X;
         case scatter_update::along_y:
             return kernel_selector::scatter_update_axis::Y;
+        case scatter_update::along_z:
+            return kernel_selector::scatter_update_axis::Z;
+        case scatter_update::along_w:
+            return kernel_selector::scatter_update_axis::W;
         case scatter_update::along_f:
             return kernel_selector::scatter_update_axis::FEATURE;
         case scatter_update::along_b:
@@ -77,7 +81,15 @@ attach_scatter_update_gpu::attach_scatter_update_gpu() {
     implementation_map<scatter_update>::add(std::make_tuple(engine_types::ocl, data_types::f32, format::bfyx), val_fw);
     implementation_map<scatter_update>::add(std::make_tuple(engine_types::ocl, data_types::f16, format::bfyx), val_fw);
     implementation_map<scatter_update>::add(std::make_tuple(engine_types::ocl, data_types::i32, format::bfyx), val_fw);
-    implementation_map<scatter_update>::add(std::make_tuple(engine_types::ocl, data_types::f16, format::bfyx), val_fw);
+
+    implementation_map<scatter_update>::add(std::make_tuple(engine_types::ocl, data_types::f32, format::bfzyx), val_fw);
+    implementation_map<scatter_update>::add(std::make_tuple(engine_types::ocl, data_types::f16, format::bfzyx), val_fw);
+    implementation_map<scatter_update>::add(std::make_tuple(engine_types::ocl, data_types::i32, format::bfzyx), val_fw);
+
+    implementation_map<scatter_update>::add(std::make_tuple(engine_types::ocl, data_types::f32, format::bfwzyx), val_fw);
+    implementation_map<scatter_update>::add(std::make_tuple(engine_types::ocl, data_types::f16, format::bfwzyx), val_fw);
+    implementation_map<scatter_update>::add(std::make_tuple(engine_types::ocl, data_types::i32, format::bfwzyx), val_fw);
+    
 }
 
 }  // namespace detail

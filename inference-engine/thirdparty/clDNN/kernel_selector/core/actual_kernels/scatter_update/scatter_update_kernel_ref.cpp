@@ -24,10 +24,16 @@ namespace kernel_selector {
 static size_t GetScatterUpdateChannelIndex(const scatter_update_params& params) {
     Tensor::DataChannelName name = Tensor::DataChannelName::X;
 
+    const size_t Dict_size = params.inputs[0].GetDims().size();
+
     switch (params.axis) {
         case ScatterUpdateAxis::X:
-            return 3;
+            return Dict_size - 1;
         case ScatterUpdateAxis::Y:
+            return Dict_size - 2;
+        case ScatterUpdateAxis::Z:
+            return Dict_size - 3;
+        case ScatterUpdateAxis::W:
             return 2;
         case ScatterUpdateAxis::FEATURE:
             return 1;
@@ -52,6 +58,10 @@ ParamsKey ScatterUpdateKernelRef::GetSupportedKey() const {
     k.EnableOutputDataType(Datatype::UINT8);
     k.EnableInputLayout(DataLayout::bfyx);
     k.EnableOutputLayout(DataLayout::bfyx);
+    k.EnableInputLayout(DataLayout::bfzyx);
+    k.EnableOutputLayout(DataLayout::bfzyx);
+    k.EnableInputLayout(DataLayout::bfwzyx);
+    k.EnableOutputLayout(DataLayout::bfwzyx);
     k.EnableTensorOffset();
     k.EnableTensorPitches();
     k.EnableBatching();
@@ -83,8 +93,21 @@ static inline std::string GetOrderString(std::vector<std::string>& order) {
     return order_str;
 }
 
+static inline std::vector<std::string> GetDefaultOrder(size_t size) {
+    std::vector<std::string> default_order;
+    if (size <= 4) {
+        default_order = {"b", "f", "y", "x"};
+    } else if (size == 5) {
+        default_order = {"b", "f", "z", "y", "x"};
+    } else if (size == 6) {
+        default_order = {"b", "f", "w", "z", "y", "x"};
+    }
+    
+    return default_order;
+}
+
 static std::string GetUpdatesIndexOrder(const scatter_update_params& params, size_t axis) {
-    std::vector<std::string> default_order = { "b", "f", "y", "x" };
+    std::vector<std::string> default_order = GetDefaultOrder(params.output.GetDims().size());
 
     size_t indices_dims_num = GetNonEmptyDimsNumber(params.inputs[1]);
     std::string FYX_indices_size = "(INPUT1_FEATURE_NUM * INPUT1_SIZE_Y * INPUT1_SIZE_X)";
@@ -116,34 +139,92 @@ static std::string GetUpdatesIndexOrder(const scatter_update_params& params, siz
     return GetOrderString(default_order);
 }
 
-static std::string GetSecondIterOutputIndexOrder(size_t axis){
-    std::vector<std::string> default_order = { "b", "f", "y", "x" };
+static std::string GetSecondIterOutputIndexOrder(const scatter_update_params& params, size_t axis){
+    std::vector<std::string> default_order = GetDefaultOrder(params.output.GetDims().size());
     default_order[axis] = "indices[OUTPUT_INDEX_ON_AXIS]";
     return GetOrderString(default_order);
 }
 
-CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_params& params, const optional_params&, bool is_second) const {
+CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_params& params, const optional_params&, bool is_second/*, std::vector<std::string>& size_deviders_for_cl*/) const {
     CommonDispatchData runInfo;
     const auto& output = params.output;
 
-    std::vector<size_t> global {output.Batch().v, output.Feature().v, output.X().v * output.Y().v};
-    if (is_second){
-        const size_t INDICES_SIZE = params.inputs[1].LogicalSize();
+    std::vector<size_t> global(3);
 
-        switch (params.axis){
-        case ScatterUpdateAxis::BATCH:
-            global[0] = INDICES_SIZE;
-            break;
-        case ScatterUpdateAxis::FEATURE:
-            global[1] = INDICES_SIZE;
-            break;
-        case ScatterUpdateAxis::Y:
-            global[2] = INDICES_SIZE * output.X().v;
-            break;
-        case ScatterUpdateAxis::X:
-            global[2] = INDICES_SIZE * output.Y().v;
-            break;
+    const size_t INDICES_SIZE = params.inputs[1].LogicalSize();
+
+    switch (output.GetLayout()){
+    case DataLayout::bfyx:
+        global = {output.X().v, output.Y().v, output.Feature().v * output.Batch().v};
+        if (is_second){
+            switch (params.axis){
+            case ScatterUpdateAxis::BATCH:
+                global[2] = INDICES_SIZE * output.Feature().v;
+                break;
+            case ScatterUpdateAxis::FEATURE:
+                global[2] = INDICES_SIZE * output.Batch().v;
+                break;
+            case ScatterUpdateAxis::Y:
+                global[1] = INDICES_SIZE;
+                break;
+            case ScatterUpdateAxis::X:
+                global[0] = INDICES_SIZE;
+                break;
+            default: break;
+            }
         }
+        break;
+
+    case DataLayout::bfzyx:
+        global = {output.X().v * output.Y().v, output.Z().v, output.Feature().v * output.Batch().v};
+        if (is_second){
+            switch (params.axis){
+            case ScatterUpdateAxis::BATCH:
+                global[2] = INDICES_SIZE * output.Feature().v;
+                break;
+            case ScatterUpdateAxis::FEATURE:
+                global[2] = INDICES_SIZE * output.Batch().v;
+                break;
+            case ScatterUpdateAxis::Z:
+                global[1] = INDICES_SIZE;
+                break;
+            case ScatterUpdateAxis::Y:
+                global[0] = INDICES_SIZE * output.X().v;
+                break;
+            case ScatterUpdateAxis::X:
+                global[0] = INDICES_SIZE * output.Y().v;
+                break;
+            default: break;
+            }
+        }
+        break;
+
+    case DataLayout::bfwzyx:
+        global = {output.X().v * output.Y().v, output.Z().v * output.W().v, output.Feature().v * output.Batch().v};
+        if (is_second){
+            switch (params.axis){
+            case ScatterUpdateAxis::BATCH:
+                global[2] = INDICES_SIZE * output.Feature().v;
+                break;
+            case ScatterUpdateAxis::FEATURE:
+                global[2] = INDICES_SIZE * output.Batch().v;
+                break;
+            case ScatterUpdateAxis::Z:
+                global[1] = INDICES_SIZE * output.W().v;
+                break;
+            case ScatterUpdateAxis::W:
+                global[1] = INDICES_SIZE * output.Z().v;
+                break;
+            case ScatterUpdateAxis::Y:
+                global[0] = INDICES_SIZE * output.X().v;
+                break;
+            case ScatterUpdateAxis::X:
+                global[0] = INDICES_SIZE * output.Y().v;
+                break;
+            }
+        }
+        break;
+    default: break;
     }
     
     std::vector<size_t> local = GetOptimalLocalWorkGroupSizes(global, params.engineInfo);
@@ -162,8 +243,8 @@ CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_param
     return runInfo;
 }
 
-static std::string GetOutputIndexOnAxis(size_t axis){
-    std::vector<std::string> default_order = { "b", "f", "y", "x" };
+static std::string GetOutputIndexOnAxis(const scatter_update_params& params, size_t axis){
+    std::vector<std::string> default_order = GetDefaultOrder(params.output.GetDims().size());
     return std::string(default_order[axis]);
 }
 
@@ -171,11 +252,11 @@ JitConstants ScatterUpdateKernelRef::GetJitConstants(const scatter_update_params
     JitConstants jit = MakeBaseParamsJitConstants(params);
 
     jit.AddConstant(MakeJitConstant("UPDATES_INDEX_ORDER", GetUpdatesIndexOrder(params, GetScatterUpdateChannelIndex(params))));
-    jit.AddConstant(MakeJitConstant("SECOND_ITER_OUTPUT_INDEX_ORDER", GetSecondIterOutputIndexOrder(GetScatterUpdateChannelIndex(params))));
-    jit.AddConstant(MakeJitConstant("OUTPUT_INDEX_ON_AXIS", GetOutputIndexOnAxis(GetScatterUpdateChannelIndex(params))));
+    jit.AddConstant(MakeJitConstant("SECOND_ITER_OUTPUT_INDEX_ORDER", GetSecondIterOutputIndexOrder(params, GetScatterUpdateChannelIndex(params))));
+    jit.AddConstant(MakeJitConstant("OUTPUT_INDEX_ON_AXIS", GetOutputIndexOnAxis(params, GetScatterUpdateChannelIndex(params))));
     jit.AddConstant(MakeJitConstant("AXIS_VALUE", GetScatterUpdateChannelIndex(params)));
     if (!params.fused_ops.empty()) {
-        FusedOpsConfiguration conf = { "", {"b", "f", "y", "x"}, "val", params.inputs[0].GetDType() };
+        FusedOpsConfiguration conf = { "", GetDefaultOrder(params.output.GetDims().size()), "val", params.inputs[0].GetDType() };
     
         jit.Merge(MakeFusedOpsJitConstants(params, {conf}));
     }
@@ -206,19 +287,33 @@ KernelsData ScatterUpdateKernelRef::GetKernelsData(const Params& params, const o
     const scatter_update_params& orgParams = static_cast<const scatter_update_params&>(params);
 
     const size_t INDICES_SIZE = orgParams.inputs[1].LogicalSize();
-    std::vector<size_t> output_dims {orgParams.output.Batch().v, orgParams.output.Feature().v, orgParams.output.Y().v, orgParams.output.X().v};
     const uint axis = GetScatterUpdateChannelIndex(orgParams);
+    uint start_with_iteration = 0;
 
-    uint start_with_iterations = 0;
-    if (output_dims[axis] == INDICES_SIZE){
-        start_with_iterations = 1;
+
+    std::vector<size_t> output_dims;
+    switch (orgParams.output.GetLayout()){
+    case DataLayout::bfyx:
+        output_dims = {orgParams.output.Batch().v, orgParams.output.Feature().v, orgParams.output.Y().v, orgParams.output.X().v};
+        break;
+    case DataLayout::bfzyx:
+        output_dims = {orgParams.output.Batch().v, orgParams.output.Feature().v, orgParams.output.Z().v, orgParams.output.Y().v, orgParams.output.X().v};
+        break;
+    case DataLayout::bfwzyx:
+        output_dims = {orgParams.output.Batch().v, orgParams.output.Feature().v, orgParams.output.W().v, orgParams.output.Z().v, orgParams.output.Y().v, orgParams.output.X().v};
+        break;
+    default: break;
     }
 
-    KernelData kd = KernelData::Default<scatter_update_params>(params, (2 - start_with_iterations));
+    if (output_dims[axis] == INDICES_SIZE){
+        start_with_iteration = 1;
+    }
+
+    KernelData kd = KernelData::Default<scatter_update_params>(params, (2 - start_with_iteration));
     scatter_update_params& newParams = *static_cast<scatter_update_params*>(kd.params.get());
     auto cldnn_jit = GetJitConstants(newParams);
 
-    for (int i = start_with_iterations; i < 2; i++){
+    for (int i = start_with_iteration; i < 2; i++){
         auto runInfo = SetDefault(newParams, options, (i == 1));
         auto entry_point = GetEntryPoint(kernelName, newParams.layerID, options);
 
@@ -227,7 +322,7 @@ KernelsData ScatterUpdateKernelRef::GetKernelsData(const Params& params, const o
         }
         std::string jit = CreateJit(kernelName, cldnn_jit, entry_point);
 
-        auto& kernel = kd.kernels[i - start_with_iterations];
+        auto& kernel = kd.kernels[i - start_with_iteration];
 
         FillCLKernelData(kernel, runInfo, params.engineInfo, kernelName, jit, entry_point, "", false, false, 3, GetFusedPrimitiveInputsCount(params));
     }
