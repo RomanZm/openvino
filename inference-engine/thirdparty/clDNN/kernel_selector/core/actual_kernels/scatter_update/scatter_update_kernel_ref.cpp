@@ -125,25 +125,25 @@ CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_param
     CommonDispatchData runInfo;
     const auto& output = params.output;
 
-    std::vector<size_t> global {output.Batch().v, output.Feature().v,output.X().v * output.Y().v};
+    std::vector<size_t> global { output.X().v, output.Y().v, output.Batch().v * output.Feature().v };
     if (is_second){
-        const size_t AXIS = GetScatterUpdateChannelIndex(params);
         const size_t INDICES_SIZE = params.inputs[1].Batch().v * params.inputs[1].Feature().v *  
                                      params.inputs[1].Y().v * params.inputs[1].X().v;
 
-        switch (AXIS){
-        case 0:
-            global[AXIS] = INDICES_SIZE;
-            break;
-        case 1:
-            global[AXIS] = INDICES_SIZE;
-            break;
-        case 2:
-            global[AXIS] = INDICES_SIZE * output.X().v;
-            break;
-        case 3:
-            global[AXIS - 1] = INDICES_SIZE * output.Y().v;
-            break;
+        switch (params.axis){
+            case ScatterUpdateAxis::BATCH:
+                global[2] = INDICES_SIZE * output.Feature().v;
+                break;
+            case ScatterUpdateAxis::FEATURE:
+                global[2] = INDICES_SIZE * output.Batch().v;
+                break;
+            case ScatterUpdateAxis::Y:
+                global[1] = INDICES_SIZE;
+                break;
+            case ScatterUpdateAxis::X:
+                global[0] = INDICES_SIZE;
+                break;
+            default: break;
         }
     }
 
@@ -175,11 +175,11 @@ JitConstants ScatterUpdateKernelRef::GetJitConstants(const scatter_update_params
     jit.AddConstant(MakeJitConstant("SECOND_ITER_OUTPUT_INDEX_ORDER", GetSecondIterOutputIndexOrder(GetScatterUpdateChannelIndex(params))));
     jit.AddConstant(MakeJitConstant("AXIS_IDX", GetOutputIndexOnAxis(GetScatterUpdateChannelIndex(params))));
     jit.AddConstant(MakeJitConstant("AXIS_VALUE", GetScatterUpdateChannelIndex(params)));
-    /*if (!params.fused_ops.empty()) {
-        FusedOpsConfiguration conf = { "", {"b", "f", "y", "x"}, "val", params.inputs[0].GetDType() };
     
+    if (!params.fused_ops.empty()) {
+        FusedOpsConfiguration conf = { "", {"b", "f", "y", "x"}, "val", params.inputs[0].GetDType() };
         jit.Merge(MakeFusedOpsJitConstants(params, {conf}));
-    }*/
+    }
 
     return jit;
 }
