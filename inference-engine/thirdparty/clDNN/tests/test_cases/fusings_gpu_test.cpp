@@ -40,6 +40,7 @@
 #include "test_utils/test_utils.h"
 
 #include <cmath>
+#include <set>
 
 using namespace cldnn;
 using namespace tests;
@@ -118,6 +119,27 @@ struct normalize_test_params {
     size_t expected_fused_primitives;
     size_t expected_not_fused_primitives;
 };
+
+template<typename Type>
+static std::vector<Type> generate_random_norepetitions_1d(size_t a, int min, int max) {
+// Rerurn repeatless vector with size = a in range(min, max)
+static std::default_random_engine generator(random_seed);
+std::uniform_int_distribution<int> distribution(min, max);
+std::set<int> repeatless;
+std::vector<Type> v(a);
+int i = 0;
+int temp;
+if (max-min >= int(a)-1)
+    while (repeatless.size() < a){
+        temp = distribution(generator);
+        if (repeatless.find(temp) == repeatless.end()){
+            repeatless.insert(temp);
+            v[i] = (Type)temp;
+            i++;
+        }
+    }
+return v;
+}
 
 template<typename T>
 class BaseFusingTest : public ::testing::TestWithParam<T> {
@@ -227,6 +249,27 @@ public:
             set_values(prim, rnd_vec);
         } else {
             VF<float> rnd_vec(s.count(), fill_value);
+            set_values(prim, rnd_vec);
+        }
+
+        return prim;
+    }
+
+    cldnn::memory get_repeatless_mem(cldnn::layout l, int min, int max) {
+        auto prim = memory::allocate(engine, l);
+        tensor s = l.size;
+        if (l.data_type == data_types::f32) {
+            VF<float> rnd_vec = generate_random_norepetitions_1d<float>(s.count(), min, max);
+            set_values(prim, rnd_vec);
+        } else if (l.data_type == data_types::f16) {
+            VF<FLOAT16> rnd_vec = generate_random_norepetitions_1d<FLOAT16>(s.count(), min, max);
+            set_values(prim, rnd_vec);
+        } else if (l.data_type == data_types::i8) {
+            VF<int8_t> rnd_vec = generate_random_norepetitions_1d<int8_t>(s.count(), min, max);
+            set_values(prim, rnd_vec);
+        }
+        else if (l.data_type == data_types::bin) {
+            VF<int32_t> rnd_vec = generate_random_norepetitions_1d<int32_t>(s.count(), min, max);
             set_values(prim, rnd_vec);
         }
 
@@ -4897,8 +4940,8 @@ class scatter_update_quantize : public ScatterUpdatePrimitiveFusingTest {};
 TEST_P(scatter_update_quantize, basic) {
     auto p = GetParam();
     create_topologies(input_layout("input", get_input_layout(p)),
-        data("scatter_update_indices", get_mem(get_indices_layout(p), 0, static_cast<int>(get_axis_dim(p)))),
-        data("scatter_update_updates", get_mem(get_updates_layout(p), 0, static_cast<int>(get_axis_dim(p)))),
+        data("scatter_update_indices", get_repeatless_mem(get_indices_layout(p), 0, static_cast<int>(get_axis_dim(p)) - 1)),
+        data("scatter_update_updates", get_mem(get_updates_layout(p), 0, 1000)),
         data("in_lo", get_mem(get_per_channel_layout(p), min_random, 0)),
         data("in_hi", get_mem(get_per_channel_layout(p), 1, max_random)),
         data("out_lo", get_mem(get_single_element_layout(p), -127)),
@@ -4927,8 +4970,8 @@ class scatter_update_scale_activation : public ScatterUpdatePrimitiveFusingTest 
 TEST_P(scatter_update_scale_activation, basic) {
     auto p = GetParam();
     create_topologies(input_layout("input", get_input_layout(p)),
-        data("scatter_update_indices", get_mem(get_indices_layout(p), 0, static_cast<int>(get_axis_dim(p)))),
-        data("scatter_update_updates", get_mem(get_updates_layout(p), 0, static_cast<int>(get_axis_dim(p)))),
+        data("scatter_update_indices", get_repeatless_mem(get_indices_layout(p), 0, static_cast<int>(get_axis_dim(p)) - 1)),
+        data("scatter_update_updates", get_mem(get_updates_layout(p), 0, 1000)),
         data("scale_data", get_mem(get_per_channel_layout(p), -10, 10)),
         scatter_update("scatter_update_prim", "input", "scatter_update_indices", "scatter_update_updates", p.axis, p.out_shape),
         activation("activation", "scatter_update_prim", activation_func::abs),

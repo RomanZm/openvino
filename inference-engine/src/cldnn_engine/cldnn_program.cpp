@@ -3574,8 +3574,8 @@ void Program::CreateConvolutionPrimitive(cldnn::topology& topology, InferenceEng
         std::vector<cldnn::tensor::value_type> indicesDimsVec, updatesDimsVec;  // BFZYX order
         InferenceEngine::Blob::Ptr dataBlob;
 
-        size_t b = 2;
-        size_t f = 3;
+        size_t b = 150;
+        size_t f = 150;
         size_t y = 1;
         size_t x = 1;
 

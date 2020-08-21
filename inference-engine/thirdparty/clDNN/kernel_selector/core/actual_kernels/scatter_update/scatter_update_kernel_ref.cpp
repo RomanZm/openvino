@@ -120,6 +120,12 @@ static std::string GetSecondIterOutputIndexOrder(size_t axis){
     return GetOrderString(default_order);
 }
 
+static std::vector<std::string> GetVectorSecondOutputIndexOrder(size_t axis){
+    std::vector<std::string> default_order = { "b", "f", "y", "x" };
+    default_order[axis] = "Indices_el_under_axis_idx";
+    return default_order;
+}
+
 CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_params& params, const optional_params&, bool is_second/*, JitConstants& jit*/) const {
 
     CommonDispatchData runInfo;
@@ -145,7 +151,27 @@ CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_param
                 break;
             default: break;
         }
-    }
+    }/*else{
+        std::vector<uint> deviders {5, 4, 3, 2};
+        uint devider = 1;
+        uint rest = 0;
+        uint new_output_y_size = output.Y().v;
+        for (uint i = 0; i<deviders.size(); i++){
+            if (output.Y().v >= deviders[i]){
+                devider = deviders[i];
+                rest = output.Y().v % devider;
+                if (rest != 0){
+                    new_output_y_size = output.Y().v / devider + 1;
+                }
+                else
+                    new_output_y_size = output.Y().v / devider;
+                global[0] = new_output_y_size;
+                break;
+            }
+        }
+        jit.AddConstant(MakeJitConstant("REDUCE_NUMB", devider));
+        jit.AddConstant(MakeJitConstant("REST", rest));
+    }*/
 
     std::vector<size_t> local = GetOptimalLocalWorkGroupSizes(global, params.engineInfo);
 
@@ -165,7 +191,7 @@ CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_param
 
 static std::string GetOutputIndexOnAxis(size_t axis){
     std::vector<std::string> default_order = { "b", "f", "y", "x" };
-    return std::string(default_order[axis]);
+    return default_order[axis];
 }
 
 JitConstants ScatterUpdateKernelRef::GetJitConstants(const scatter_update_params& params) const {
@@ -177,8 +203,9 @@ JitConstants ScatterUpdateKernelRef::GetJitConstants(const scatter_update_params
     jit.AddConstant(MakeJitConstant("AXIS_VALUE", GetScatterUpdateChannelIndex(params)));
     
     if (!params.fused_ops.empty()) {
-        FusedOpsConfiguration conf = { "", {"b", "f", "y", "x"}, "val", params.inputs[0].GetDType() };
-        jit.Merge(MakeFusedOpsJitConstants(params, {conf}));
+        FusedOpsConfiguration conf1 = { "_FIRST_KERNEL", {"b", "f", "y", "x"}, "val", params.inputs[0].GetDType() };
+        FusedOpsConfiguration conf2 = { "_SECOND_KERNEL", GetVectorSecondOutputIndexOrder(GetScatterUpdateChannelIndex(params)), "val", params.inputs[0].GetDType() };
+        jit.Merge(MakeFusedOpsJitConstants(params, {conf1, conf2}));
     }
 
     return jit;

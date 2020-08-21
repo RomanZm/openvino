@@ -31,19 +31,19 @@ KERNEL(scatter_update_ref)(const __global INPUT0_TYPE* dictionary,
     const uint x = get_global_id(0);
     const uint y = get_global_id(1);
     const uint bf = get_global_id(2);
-    
 
 #ifndef IS_SECOND_ITER
     const uint b = bf / OUTPUT_FEATURE_NUM;
     const uint f = bf % OUTPUT_FEATURE_NUM;
+
     const uint output_idx = OUTPUT_GET_INDEX(b, f, y, x);
-    INPUT0_TYPE val = dictionary[output_idx];
-#if HAS_FUSED_OPS
-    FUSED_OPS;
-    output[output_idx] = TO_OUTPUT_TYPE(FUSED_OPS_RESULT);
-#else
-    output[output_idx] = ACTIVATION(val, ACTIVATION_PARAMS);
-#endif
+    const INPUT0_TYPE val = dictionary[output_idx];
+    #if HAS_FUSED_OPS
+        FUSED_OPS_FIRST_KERNEL;
+        output[output_idx] = TO_OUTPUT_TYPE(FUSED_OPS_RESULT_FIRST_KERNEL);
+    #else
+        output[output_idx] = ACTIVATION(val, ACTIVATION_PARAMS);
+    #endif
     //printf("First time!!! b: %d f: %d y: %d x: %d || output_idx: %d; output: %f;\n", b, f, y, x, output_idx, output[output_idx]);
 #else
     uint b, f;
@@ -56,18 +56,19 @@ KERNEL(scatter_update_ref)(const __global INPUT0_TYPE* dictionary,
         f = bf % OUTPUT_FEATURE_NUM;
     }
 
+    const int Indices_el_under_axis_idx = indices[AXIS_IDX];
     const uint output_idx = GET_OUTPUT_INDEX(SECOND_ITER_OUTPUT_INDEX_ORDER);
     const uint updates_idx = GET_UPDATES_INDEX(UPDATES_INDEX_ORDER);
-    INPUT2_TYPE val = updates[updates_idx];
-#if HAS_FUSED_OPS
-    FUSED_OPS;
-    output[output_idx] = TO_OUTPUT_TYPE(FUSED_OPS_RESULT);
-#else
-    output[output_idx] = ACTIVATION(val, ACTIVATION_PARAMS);
-#endif
+    const INPUT2_TYPE val = updates[updates_idx];
+    #if HAS_FUSED_OPS
+        FUSED_OPS_SECOND_KERNEL;
+        output[output_idx] = TO_OUTPUT_TYPE(FUSED_OPS_RESULT_SECOND_KERNEL);
+    #else
+        output[output_idx] = ACTIVATION(val, ACTIVATION_PARAMS);
+    #endif
     //if (f%10 == 0 && x % 50 == 0){
-    //printf("Second!!! b: %d f: %d y: %d x: %d; Axis: %d|| updates_idx: %d; updates: %f; output_idx: %d; output: %f \n",
-    //        b, f, y, x, AXIS_VALUE, updates_idx, updates[updates_idx], output_idx, output[output_idx]);
+    //printf("Second!!! b: %d f: %d y: %d x: %d;|| AXIS_IDX: %d; indices[AXIS_IDX]: %f || updates_idx: %d; updates: %f; output_idx: %d; output: %f \n",
+    //        b, f, y, x, AXIS_IDX, indices[AXIS_IDX], updates_idx, updates[updates_idx], output_idx, output[output_idx]);
     //}
     
     //printf("First time!!! b: %d f: %d y: %d x: %d || output_idx: %d; output: %f\n", b, f, y, x, output_idx, output[output_idx]);

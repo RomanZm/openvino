@@ -41,7 +41,7 @@
 #include <utility>
 #include <map>
 
-//#define DEBUG_DUMP_PATH "/home/rz_user/work/Scatter_Update_impl/Dump/dump1/"
+//#define DEBUG_DUMP_PATH "/home/rz_user/work/Scatter_Update_impl/Dump/Dump2/"
 
 #ifdef DEBUG_DUMP_PATH
 #include <iomanip>
