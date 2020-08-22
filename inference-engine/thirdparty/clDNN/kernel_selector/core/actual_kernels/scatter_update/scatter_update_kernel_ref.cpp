@@ -107,7 +107,7 @@ static inline std::vector<std::string> GetDefaultOrder(size_t size) {
 }
 
 static std::string GetUpdatesIndexOrder(const scatter_update_params& params, size_t axis) {
-    std::vector<std::string> default_order = GetDefaultOrder(params.output.GetDims().size());
+    std::vector<std::string> default_order = GetDefaultOrder(params.inputs[2].GetDims().size());
 
     size_t indices_dims_num = GetNonEmptyDimsNumber(params.inputs[1]);
     std::string FYX_indices_size = "(INPUT1_FEATURE_NUM * INPUT1_SIZE_Y * INPUT1_SIZE_X)";
@@ -153,7 +153,7 @@ CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_param
 
     const size_t INDICES_SIZE = params.inputs[1].LogicalSize();
 
-    switch (output.GetLayout()){
+    switch (params.inputs[2].GetLayout()){
     case DataLayout::bfyx:
         global = {output.X().v, output.Y().v, output.Feature().v * output.Batch().v};
         if (is_second){
@@ -201,6 +201,7 @@ CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_param
 
     case DataLayout::bfwzyx:
         global = {output.X().v * output.Y().v, output.Z().v * output.W().v, output.Feature().v * output.Batch().v};
+        std::cout << "Here we are, bfwzyx! output.B().v = " << params.inputs[0].Batch().v << "; output.F().v = " << params.inputs[0].Feature().v << "; output.W().v =" << params.inputs[0].W().v << "; output.Z().v =" << params.inputs[0].Z().v << "; output.Y().v =" << params.inputs[0].Y().v << "; output.X().v = " << params.inputs[0].X().v << std::endl;
         if (is_second){
             switch (params.axis){
             case ScatterUpdateAxis::BATCH:
