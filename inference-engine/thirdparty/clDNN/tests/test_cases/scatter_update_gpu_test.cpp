@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 Intel Corporation
+// Copyright (c) 2020 Intel Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -1111,9 +1111,9 @@ TEST(scatter_update_gpu_int32, d121251_bfwzyx_axisB) {
 
     engine engine;
 
-    auto input1 = memory::allocate(engine, { data_types::i32, format::bfwzyx, { 1, 2, 1, 5, 2, 1 } }); // Dictionary
+    auto input1 = memory::allocate(engine, { data_types::i32, format::bfwzyx, tensor{ batch(1), feature(2), spatial(1, 5, 2, 1) }}); // Dictionary
     auto input2 = memory::allocate(engine, { data_types::i32, format::bfyx, { 2, 2, 1, 1 } });         // Indexes
-    auto input3 = memory::allocate(engine, { data_types::i32, format::bfwzyx, { 1, 2, 2, 2, 2, 1 } }); // Updates
+    auto input3 = memory::allocate(engine, { data_types::i32, format::bfwzyx, tensor{ batch(1), feature(2), spatial(2, 2, 2, 1) }}); // Updates
     auto axis = cldnn::scatter_update::scatter_update_axis::along_y;
 
     set_values(input1, {
@@ -1144,7 +1144,7 @@ TEST(scatter_update_gpu_int32, d121251_bfwzyx_axisB) {
     topology.add(input_layout("InputText", input2.get_layout()));
     topology.add(input_layout("InputUpdates", input3.get_layout()));
     topology.add(
-        scatter_update("scatter_update", "InputDictionary", "InputText", "InputUpdates", axis, tensor( 1, 2, 1, 5, 2, 1 ))
+        scatter_update("scatter_update", "InputDictionary", "InputText", "InputUpdates", axis, tensor( batch(1), feature(2), spatial(1, 5, 2, 1) ))
     );
     
     network network(engine, topology); 

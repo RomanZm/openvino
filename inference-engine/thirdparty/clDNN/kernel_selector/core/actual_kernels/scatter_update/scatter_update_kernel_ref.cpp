@@ -145,13 +145,13 @@ static std::string GetSecondIterOutputIndexOrder(const scatter_update_params& pa
     return GetOrderString(default_order);
 }
 
-CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_params& params, const optional_params&, bool is_second/*, std::vector<std::string>& size_deviders_for_cl*/) const {
+CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_params& params, const optional_params&, bool is_second) const {
     CommonDispatchData runInfo;
     const auto& output = params.output;
 
     std::vector<size_t> global(3);
 
-    const size_t INDICES_SIZE = params.inputs[1].LogicalSize();
+    const size_t indices_size = params.inputs[1].LogicalSize();
 
     switch (params.inputs[2].GetLayout()){
     case DataLayout::bfyx:
@@ -159,16 +159,16 @@ CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_param
         if (is_second){
             switch (params.axis){
             case ScatterUpdateAxis::BATCH:
-                global[2] = INDICES_SIZE * output.Feature().v;
+                global[2] = indices_size * output.Feature().v;
                 break;
             case ScatterUpdateAxis::FEATURE:
-                global[2] = INDICES_SIZE * output.Batch().v;
+                global[2] = indices_size * output.Batch().v;
                 break;
             case ScatterUpdateAxis::Y:
-                global[1] = INDICES_SIZE;
+                global[1] = indices_size;
                 break;
             case ScatterUpdateAxis::X:
-                global[0] = INDICES_SIZE;
+                global[0] = indices_size;
                 break;
             default: break;
             }
@@ -180,19 +180,19 @@ CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_param
         if (is_second){
             switch (params.axis){
             case ScatterUpdateAxis::BATCH:
-                global[2] = INDICES_SIZE * output.Feature().v;
+                global[2] = indices_size * output.Feature().v;
                 break;
             case ScatterUpdateAxis::FEATURE:
-                global[2] = INDICES_SIZE * output.Batch().v;
+                global[2] = indices_size * output.Batch().v;
                 break;
             case ScatterUpdateAxis::Z:
-                global[1] = INDICES_SIZE;
+                global[1] = indices_size;
                 break;
             case ScatterUpdateAxis::Y:
-                global[0] = INDICES_SIZE * output.X().v;
+                global[0] = indices_size * output.X().v;
                 break;
             case ScatterUpdateAxis::X:
-                global[0] = INDICES_SIZE * output.Y().v;
+                global[0] = indices_size * output.Y().v;
                 break;
             default: break;
             }
@@ -201,26 +201,25 @@ CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_param
 
     case DataLayout::bfwzyx:
         global = {output.X().v * output.Y().v, output.Z().v * output.W().v, output.Feature().v * output.Batch().v};
-        std::cout << "Here we are, bfwzyx! output.B().v = " << params.inputs[0].Batch().v << "; output.F().v = " << params.inputs[0].Feature().v << "; output.W().v =" << params.inputs[0].W().v << "; output.Z().v =" << params.inputs[0].Z().v << "; output.Y().v =" << params.inputs[0].Y().v << "; output.X().v = " << params.inputs[0].X().v << std::endl;
         if (is_second){
             switch (params.axis){
             case ScatterUpdateAxis::BATCH:
-                global[2] = INDICES_SIZE * output.Feature().v;
+                global[2] = indices_size * output.Feature().v;
                 break;
             case ScatterUpdateAxis::FEATURE:
-                global[2] = INDICES_SIZE * output.Batch().v;
+                global[2] = indices_size * output.Batch().v;
                 break;
             case ScatterUpdateAxis::Z:
-                global[1] = INDICES_SIZE * output.W().v;
+                global[1] = indices_size * output.W().v;
                 break;
             case ScatterUpdateAxis::W:
-                global[1] = INDICES_SIZE * output.Z().v;
+                global[1] = indices_size * output.Z().v;
                 break;
             case ScatterUpdateAxis::Y:
-                global[0] = INDICES_SIZE * output.X().v;
+                global[0] = indices_size * output.X().v;
                 break;
             case ScatterUpdateAxis::X:
-                global[0] = INDICES_SIZE * output.Y().v;
+                global[0] = indices_size * output.Y().v;
                 break;
             }
         }
@@ -239,7 +238,6 @@ CommonDispatchData ScatterUpdateKernelRef::SetDefault(const scatter_update_param
     runInfo.lws2 = local[2];
 
     runInfo.fp16UnitUsed = params.inputs[0].GetDType() == Datatype::F16;
-    runInfo.fp16UnitUsed = params.inputs[2].GetDType() == Datatype::F16;
 
     return runInfo;
 }
@@ -290,7 +288,6 @@ KernelsData ScatterUpdateKernelRef::GetKernelsData(const Params& params, const o
     const size_t INDICES_SIZE = orgParams.inputs[1].LogicalSize();
     const uint axis = GetScatterUpdateChannelIndex(orgParams);
     uint start_with_iteration = 0;
-
 
     std::vector<size_t> output_dims;
     switch (orgParams.output.GetLayout()){
